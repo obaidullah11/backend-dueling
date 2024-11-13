@@ -81,6 +81,10 @@ class User(AbstractUser):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     image = models.ImageField(upload_to='user_images/', null=True, blank=True)
+    visible_to_user = models.BooleanField(default=True)  # Determines if the user profile is visible
+    twitter_url = models.URLField(max_length=255, null=True, blank=True)  # Twitter profile link
+    instagram_url = models.URLField(max_length=255, null=True, blank=True)  # Instagram profile link
+    facebook_url = models.URLField(max_length=255, null=True, blank=True)  # Facebook profile link
 
     objects = MyUserManager()
 

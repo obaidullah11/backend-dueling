@@ -21,7 +21,7 @@ from firebase_admin import credentials,firestore
 import os
 BASE_DIR = Path(__file__).resolve().parent.parent
 # print("path",BASE_DIR)
-FIREBASE_CREDENTIALS_PATH = os.path.join(BASE_DIR, 'Dueling', 'firbase.json')
+FIREBASE_CREDENTIALS_PATH = os.path.join(BASE_DIR, 'Dueling', 'firebase.json')
 # print(f"Firebase credentials file path: {FIREBASE_CREDENTIALS_PATH}"
 # Path to Firebase credentials JSON file
 # FIREBASE_CREDENTIALS_PATH = os.path.join(BASE_DIR, 'Dueling\firebase.json')

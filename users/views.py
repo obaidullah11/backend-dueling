@@ -18,12 +18,33 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.mail import send_mail
 from django.utils.crypto import get_random_string
-from .serializers import SocialRegistrationSerializer, UserLoginSerializer, UserProfileSerializer,PasswordResetSerializer
+from .serializers import UserSerializer,SocialRegistrationSerializer, UserLoginSerializer, UserProfileSerializer,PasswordResetSerializer
 from django.contrib.auth.hashers import make_password
 import random
 from rest_framework.exceptions import ValidationError
 import string
+# class UserDetailViewnew(APIView):
+#     # Specify that the view should use 'custom_id' for lookups
+#     lookup_field = 'custom_id'
 
+#     def get(self, request, custom_id):
+#         try:
+#             # Retrieve the user using the custom_id field
+#             user = User.objects.get(custom_id=custom_id)
+#             serializer = UserSerializer(user)
+#             response_data = {
+#                 "success": True,
+#                 "message": "User data retrieved successfully.",
+#                 "data": serializer.data
+#             }
+#             return Response(response_data, status=status.HTTP_200_OK)
+#         except User.DoesNotExist:
+#             response_data = {
+#                 "success": False,
+#                 "message": "User not found.",
+#                 "data": None
+#             }
+#             return Response(response_data, status=status.HTTP_404_NOT_FOUND)
 class SocialLoginOrRegisterView(APIView):
     def post(self, request):
         serializer = SocialRegistrationSerializer(data=request.data)
@@ -230,26 +251,54 @@ class UserUpdateAPIView(APIView):
             return Response({'success': True, 'message': 'User data updated successfully'}, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-class UserDetailView(generics.RetrieveAPIView):
-    queryset = User.objects.all()
-    serializer_class = UserProfileSerializer
-    lookup_field = 'id'
+class UserDetailView(APIView):
+    # Explicitly tell DRF to look for custom_id instead of the default id field
+    lookup_field = 'custom_id'
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request, custom_id):
         try:
-            user = self.get_object()
-            serializer = self.get_serializer(user)
-            return Response({
-                "status": True,
-                "message": "User retrieved successfully.",
+            # Fetch the user by custom_id
+            user = User.objects.get(custom_id=custom_id)
+            serializer = UserSerializer(user)
+
+            # Structure the response
+            response_data = {
+                "success": True,
+                "message": "User data retrieved successfully.",
                 "data": serializer.data
-            })
+            }
+            return Response(response_data, status=status.HTTP_200_OK)
         except User.DoesNotExist:
-            return Response({
-                "status": False,
+            response_data = {
+                "success": False,
                 "message": "User not found.",
                 "data": None
-            }, status=status.HTTP_404_NOT_FOUND)
+            }
+            return Response(response_data, status=status.HTTP_404_NOT_FOUND)
+class UserDetailViewnew(APIView):
+    # Explicitly tell DRF to look for custom_id instead of the default id field
+    lookup_field = 'custom_id'
+
+    def get(self, request, custom_id):
+        try:
+            # Fetch the user by custom_id
+            user = User.objects.get(id=custom_id)
+            serializer = UserSerializer(user)
+
+            # Structure the response
+            response_data = {
+                "success": True,
+                "message": "User data retrieved successfully.",
+                "data": serializer.data
+            }
+            return Response(response_data, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            response_data = {
+                "success": False,
+                "message": "User not found.",
+                "data": None
+            }
+            return Response(response_data, status=status.HTTP_404_NOT_FOUND)
 # class UserRegistrationView(APIView):
 #     renderer_classes = [UserRenderer]
 

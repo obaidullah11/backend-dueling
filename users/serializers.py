@@ -5,6 +5,28 @@ from django.utils.encoding import smart_str, force_bytes, DjangoUnicodeDecodeErr
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from users.utils import Util
+
+
+
+
+
+class UserSerializer(serializers.ModelSerializer):
+    social_urls = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'email', 'user_type', 'image', 'device_token', 'address', 
+            'visible_to_user', 'is_active', 'is_superuser', 'full_name', 
+            'longitude', 'latitude', 'Trade_radius', 'social_urls'
+        ]
+
+    def get_social_urls(self, obj):
+        return {
+            'twitter_url': obj.twitter_url,
+            'instagram_url': obj.instagram_url,
+            'facebook_url': obj.facebook_url
+        }
 class AdminLoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
@@ -74,7 +96,7 @@ class SocialRegistrationSerializer(serializers.ModelSerializer):
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['username','email','user_type', 'image','device_token','longitude','latitude','Trade_radius','address']
+        fields = ['username','email','user_type', 'image','device_token','longitude','latitude','Trade_radius','address','contact','visible_to_user','twitter_url','instagram_url','instagram_url']
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
 

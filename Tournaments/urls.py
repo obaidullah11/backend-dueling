@@ -62,6 +62,7 @@ urlpatterns = [
     # # history
     # path('users_tournament_history/<int:user_id>/', UserTournamentHistoryAPIView, name='tournament-history'),
     path('users_tournament_history/<int:user_id>/', UserInactiveTournamentsView.as_view(), name='tournament-history'),
+    path('users_admin_tournament_history/<int:user_id>/', UserInactiveTournamentsAdminView.as_view(), name='tournament-history'),
     # path('users_tournament_history/<int:user_id>/', UserInactiveTournamentsView.as_view(), name='tournament-history'),
     path('match_scores/<int:tournament_id>/', TournamentMatchScoresView.as_view(), name='tournament-match-scores'),
     path('deck/<str:deck_name>/', DeckByNameView.as_view(), name='deck-by-name'),

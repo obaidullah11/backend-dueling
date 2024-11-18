@@ -96,7 +96,7 @@ class SocialRegistrationSerializer(serializers.ModelSerializer):
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['username','email','user_type', 'image','device_token','longitude','latitude','Trade_radius','address','contact','visible_to_user','twitter_url','instagram_url','instagram_url']
+        fields = ['username','email','user_type', 'image','device_token','longitude','latitude','Trade_radius','address','contact','visible_to_user','twitter_url','facebook_url','instagram_url']
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
 
@@ -139,9 +139,17 @@ class UserLoginSerializer(serializers.ModelSerializer):
 #     model = User
 #     fields = ['id', 'email', 'name','image']
 class UserProfileSerializer(serializers.ModelSerializer):
+    social_urls = serializers.SerializerMethodField()
     class Meta:
         model = User
-        fields = ('contact','id', 'email', 'username', 'user_type', 'is_active', 'is_admin', 'created_at', 'updated_at', 'image','is_registered','is_deleted','full_name', 'address','longitude','latitude')
+        fields = ('contact','id', 'email', 'username', 'user_type', 'is_active', 'is_admin', 'created_at', 'updated_at', 'image','is_registered','is_deleted','full_name', 'address','longitude','latitude','social_urls')
+    def get_social_urls(self, obj):
+        return {
+            'twitter_url': obj.twitter_url,
+            'instagram_url': obj.instagram_url,
+            'facebook_url': obj.facebook_url
+        }
+
 class UserChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(max_length=255, style={'input_type': 'password'}, write_only=True)
     new_password = serializers.CharField(max_length=255, style={'input_type': 'password'}, write_only=True)

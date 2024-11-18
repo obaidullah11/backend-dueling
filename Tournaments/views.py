@@ -15,12 +15,15 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.utils import timezone
 from .models import Tournament
+from django.utils.timezone import now
+import pytz  # To handle time zones
 from .serializers import  MatchScoreSerializer,FixtureSerializernew, CardSerializer,DeckSerializercreate,TournamentSerializer,TournamentSerializernew, DraftTournamentSerializer,ParticipantSerializer,ParticipantSerializernew,ParticipantSerializernewforactivelist
 import random
 from datetime import datetime, timedelta
 import requests
 from collections import defaultdict
-
+from django.utils.timezone import activate, localtime
+import pytz
 
 from rest_framework.response import Response
 from rest_framework import status
@@ -114,13 +117,13 @@ class UserInactiveTournamentsView(APIView):
             user = User.objects.get(id=user_id)
             # Ensure you correctly filter by the 'active' field of the related 'tournament' model
             participants = Participant.objects.filter(
-                user=user, 
+                user=user,
                 tournament__is_active=False  # This is valid if 'active' is a boolean field on Tournament
             )
-            
+
             # Serialize the data with leaderboard rank
             serializer = ParticipantSerializernewhistory(participants, many=True)
-            
+
             return Response({
                 "success": True,
                 "message": "Inactive tournaments retrieved successfully.",
@@ -140,7 +143,7 @@ class DeckByNameView(APIView):
         try:
             # Fetch the deck by name
             deck = Deck.objects.get(name=deck_name)
-            
+
             # Serialize the deck and its associated cards
             serializer = DeckSerializerdetail(deck)
 
@@ -406,9 +409,6 @@ class TodayEventParticipantsView(APIView):
 
 
 
-
-
-
 @api_view(['GET'])
 def events_today(request, user_id):
     """
@@ -416,34 +416,87 @@ def events_today(request, user_id):
     Expects 'user_id' as a URL parameter.
     """
     try:
-        today = timezone.now().date()
+        # Activate the timezone
+        activate(pytz.timezone("Asia/Karachi"))
+
+        # Current time and date in the set timezone
+        current_time = localtime()
+        current_date = current_time.date()
+
+        # Filter participants
         participants = Participant.objects.filter(
             user_id=user_id,
-            tournament__event_date=today,
+            tournament__is_active=True,
+            tournament__event_date=current_date,
             payment_status='paid'
         )
 
-        # Use the ParticipantSerializernew to serialize the participants
+        # Serialize the participants
         serializer = ParticipantSerializernew(participants, many=True)
 
         return Response({
             'success': True,
             'message': "Paid tournaments retrieved successfully.",
-            'data': serializer.data
+            'data': serializer.data,
+            'timezone': "Asia/Karachi",
+            'current_date': current_date.strftime('%Y-%m-%d'),
+            'current_time': current_time.strftime('%H:%M:%S')
         }, status=status.HTTP_200_OK)
 
     except Participant.DoesNotExist:
         return Response({
             'success': False,
-            'message': 'User or tournament not found.',
-            'data': []
+            'message': 'No paid tournaments found for today.',
+            'data': [],
+            'timezone': "Asia/Karachi",
+            'current_date': current_time.date().strftime('%Y-%m-%d'),
+            'current_time': current_time.strftime('%H:%M:%S')
         }, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({
             'success': False,
             'message': str(e),
-            'data': []
+            'data': [],
+            'timezone': "Asia/Karachi",
+            'current_date': current_time.date().strftime('%Y-%m-%d'),
+            'current_time': current_time.strftime('%H:%M:%S')
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# @api_view(['GET'])
+# def events_today(request, user_id):
+#     """
+#     API to get paid events for a user that are scheduled for today.
+#     Expects 'user_id' as a URL parameter.
+#     """
+#     try:
+#         today = timezone.now().date()
+#         participants = Participant.objects.filter(
+#             user_id=user_id,
+#             tournament__event_date=today,
+#             payment_status='paid'
+#         )
+
+#         # Use the ParticipantSerializernew to serialize the participants
+#         serializer = ParticipantSerializernew(participants, many=True)
+
+#         return Response({
+#             'success': True,
+#             'message': "Paid tournaments retrieved successfully.",
+#             'data': serializer.data
+#         }, status=status.HTTP_200_OK)
+
+#     except Participant.DoesNotExist:
+#         return Response({
+#             'success': False,
+#             'message': 'User or tournament not found.',
+#             'data': []
+#         }, status=status.HTTP_404_NOT_FOUND)
+#     except Exception as e:
+#         return Response({
+#             'success': False,
+#             'message': str(e),
+#             'data': []
+#         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 class ParticipantViewSet(viewsets.ModelViewSet):
     queryset = Participant.objects.all()
     serializer_class = ParticipantSerializer  # Assuming you have a Participant serializer
@@ -935,6 +988,8 @@ class FixtureViewSet(viewsets.ModelViewSet):
                 # If only one winner remains, they win the tournament
                 winner = winners[0]
                 winner_data = ParticipantSerializerforfixture(winner).data
+                tournament.is_active = False
+                tournament.save()
                 return Response({
                     'success': True,
                     'message': f'Tournament is complete. {winner.user.username} is the winner!',
@@ -997,7 +1052,7 @@ class FixtureViewSet(viewsets.ModelViewSet):
                 'message': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    
+
     def create_firestore_record(self, fixture):
         # Create a Firestore document in the "tournaments" collection for the given fixture
             tournament_name = fixture.tournament.tournament_name
@@ -1917,7 +1972,9 @@ def register_for_tournament(request, user_id):
     participant = Participant.objects.create(
         user_id=user_id,
         tournament=tournament,
-        deck=deck
+        deck=deck,
+        payment_status="paid",
+
     )
 
     # Serialize the participant to return the response
@@ -2108,8 +2165,8 @@ class TournamentViewSet(viewsets.ViewSet):
         participants = Participant.objects.filter(
             tournament=tournament,
             payment_status='paid',
-            is_disqualified=False,
-            arrived_at_venue=True
+            is_disqualified=False
+            # arrived_at_venue=True
         ).select_related('user')
 
         # Serialize participants
@@ -2254,3 +2311,104 @@ class FeaturedTournamentListView(APIView):
                 "message": "No featured tournaments available.",
                 "data": []
             })
+
+
+
+
+
+
+
+class UserInactiveTournamentsAdminView(APIView):
+    def get(self, request, user_id):
+        try:
+            # Step 1: Fetch the user
+            user = User.objects.get(id=user_id)
+
+            # Step 2: Fetch inactive tournaments created by the user
+            inactive_tournaments = Tournament.objects.filter(
+                created_by=user,
+                is_active=False
+            )
+
+            # Step 3: Fetch participants for the filtered tournaments
+            participants = Participant.objects.filter(
+                tournament__in=inactive_tournaments
+            ).select_related('tournament', 'user')
+
+            # Step 4: Group participants by tournament
+            tournament_participants_map = defaultdict(list)
+            for participant in participants:
+                tournament_participants_map[participant.tournament].append(participant)
+
+            # Step 5: Prepare the final data structure
+            result = []
+            for tournament, participants_list in tournament_participants_map.items():
+                result.append({
+                    "tournament": TournamentSerializer(tournament).data,
+                    "participants": ParticipantSerializernewhistory(participants_list, many=True).data,
+                })
+
+            return Response({
+                "success": True,
+                "message": "Inactive tournaments and their participants retrieved successfully.",
+                "data": result,
+                "current_date": now().date(),
+                "current_time": now().strftime('%H:%M:%S'),
+                "timezone": "Asia/Karachi",
+            }, status=status.HTTP_200_OK)
+
+        except User.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": "User not found.",
+                "data": []
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                "success": False,
+                "message": str(e),
+                "data": []
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+# class UserInactiveTournamentsAdminView(APIView):
+#     def get(self, request, user_id):
+#         try:
+#             user = User.objects.get(id=user_id)
+
+#             # Step 1: Fetch inactive tournaments created by the user
+#             inactive_tournaments = Tournament.objects.filter(
+#                 created_by=user,
+#                 is_active=False
+#             )
+
+#             # Step 2: Fetch participants for the filtered tournaments
+#             participants = Participant.objects.filter(
+#                 tournament__in=inactive_tournaments
+#             ).select_related('tournament', 'user')
+
+#             # Step 3: Serialize participants
+#             serializer = ParticipantSerializernewhistory(participants, many=True)
+
+#             return Response({
+#                 "success": True,
+#                 "message": "Inactive tournaments and their participants retrieved successfully.",
+#                 "data": serializer.data,
+#                 "current_date": now().date(),
+#                 "current_time": now().strftime('%H:%M:%S'),
+#                 "timezone": "Asia/Karachi",
+#             }, status=status.HTTP_200_OK)
+
+#         except User.DoesNotExist:
+#             return Response({
+#                 "success": False,
+#                 "message": "User not found.",
+#                 "data": []
+#             }, status=status.HTTP_404_NOT_FOUND)
+#         except Exception as e:
+#             return Response({
+#                 "success": False,
+#                 "message": str(e),
+#                 "data": []
+#             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

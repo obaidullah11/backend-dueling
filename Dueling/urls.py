@@ -10,6 +10,7 @@ urlpatterns = [
     path('api/user/', include('users.urls')),
     path('', include('Tournaments.urls')),
     path('', include('chat.urls')),
+    path('', include('support.urls')),
     # path('', include('fixtures.urls')),
 
     # Add path for WebSocket connections

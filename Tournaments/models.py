@@ -81,7 +81,7 @@ class Card(models.Model):
     card_quantity = models.CharField(max_length=50,null=True, blank=True)
 
     def __str__(self):
-        return f"{self.name or 'Unnamed Card'} - {self.title or 'No Title'}"
+        return f"{self.title or 'Unnamed Card'} - {self.title or 'No Title'}"
 class Participant(models.Model):
     PAYMENT_STATUS_CHOICES = [
         ('pending', 'Pending'),

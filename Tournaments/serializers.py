@@ -494,3 +494,22 @@ class TopPlayerSerializer(serializers.Serializer):
     wins = serializers.IntegerField()
     losses = serializers.IntegerField()
     user_profile = UserProfileSerializer()
+
+class CreateBannerImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BannerImage
+        fields = ['id', 'tournament', 'image']
+
+    def validate(self, data):
+        # Validate that the tournament exists
+        if not Tournament.objects.filter(id=data['tournament'].id).exists():
+            raise serializers.ValidationError("Invalid tournament ID")
+        
+        # Validate that the image is provided
+        if 'image' not in data:
+            raise serializers.ValidationError("Image is required")
+            
+        return data
+
+    def create(self, validated_data):
+        return BannerImage.objects.create(**validated_data)

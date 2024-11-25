@@ -142,7 +142,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     social_urls = serializers.SerializerMethodField()
     class Meta:
         model = User
-        fields = ('contact','id', 'email', 'username', 'user_type', 'is_active', 'is_admin', 'created_at', 'updated_at', 'image','is_registered','is_deleted','full_name', 'address','longitude','latitude','social_urls')
+        fields = ('contact','id', 'email', 'username', 'user_type', 'is_active', 'is_admin', 'created_at', 'updated_at', 'image','is_registered','is_deleted','full_name', 'address','visible_to_user','longitude','latitude','social_urls')
     def get_social_urls(self, obj):
         return {
             'twitter_url': obj.twitter_url,

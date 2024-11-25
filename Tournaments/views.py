@@ -587,75 +587,91 @@ def set_verified_winner(request, fixture_id):
     try:
         fixture = Fixture.objects.get(id=fixture_id)
     except Fixture.DoesNotExist:
+        print(f"Fixture with id {fixture_id} does not exist.")
         return Response({"success": False, "message": "Fixture not found", "data": {}}, status=status.HTTP_404_NOT_FOUND)
 
     winner_id = request.data.get("winner_id")
     if not winner_id:
+        print("winner_id not provided in the request.")
         return Response({"success": False, "message": "winner_id not provided", "data": {}}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         winner = Participant.objects.get(id=winner_id)
+        print(f"Winner fetched successfully: {winner}")
+
+        # Validate if the winner is part of the fixture
+        if winner not in [fixture.participant1, fixture.participant2]:
+            print(f"Winner {winner} is not part of fixture {fixture.id}.")
+            return Response({"success": False, "message": "Winner not part of this fixture", "data": {}}, status=status.HTTP_400_BAD_REQUEST)
+
         fixture.verified_winner = winner
         fixture.is_verified = True
         fixture.save()
 
+        print(f"Fixture {fixture.id} updated with verified winner.")
+
         # Get the tournament related to the fixture
         tournament = fixture.tournament
 
-        # Get the participants in the fixture
-        participant1 = fixture.participant1
-        participant2 = fixture.participant2
-
         # Determine winner and loser, and their respective scores
-        if winner == participant1:
+        if winner == fixture.participant1:
             winner_score = 3
-            loser_score = 0
-            loser = participant2
+            loser = fixture.participant2
         else:
             winner_score = 3
-            loser_score = 0
-            loser = participant1
+            loser = fixture.participant1
 
-        # Update or create the MatchScore for the winner
-        winner_match_score, created = MatchScore.objects.update_or_create(
-            tournament=tournament,
-            participant=winner,
-            defaults={
-                'round': fixture.round,
-                'win': True,
-                'lose': False,
-                'score': winner_score
-            }
-        )
+        loser_score = 0
 
-        # Update or create the MatchScore for the loser
-        loser_match_score, created = MatchScore.objects.update_or_create(
-            tournament=tournament,
-            participant=loser,
-            defaults={
-                'round': fixture.round,
-                'win': False,
-                'lose': True,
-                'score': loser_score
-            }
-        )
+        # Check if MatchScore for winner already exists
+        if not MatchScore.objects.filter(tournament=tournament, participant=winner, round=fixture.round).exists():
+            print(f"Creating MatchScore for winner: {winner}")
+            MatchScore.objects.create(
+                tournament=tournament,
+                participant=winner,
+                round=fixture.round,
+                win=True,
+                lose=False,
+                score=winner_score
+            )
+        else:
+            print(f"MatchScore for winner {winner} already exists, skipping creation.")
+
+        # Check if MatchScore for loser already exists
+        if not MatchScore.objects.filter(tournament=tournament, participant=loser, round=fixture.round).exists():
+            print(f"Creating MatchScore for loser: {loser}")
+            MatchScore.objects.create(
+                tournament=tournament,
+                participant=loser,
+                round=fixture.round,
+                win=False,
+                lose=True,
+                score=loser_score
+            )
+        else:
+            print(f"MatchScore for loser {loser} already exists, skipping creation.")
 
         # Calculate ranks based on score (assuming higher score gets a higher rank)
         match_scores = MatchScore.objects.filter(tournament=tournament, round=fixture.round).order_by('-score')
+        print(f"Match scores for rank calculation: {list(match_scores)}")
 
-        # Assign ranks based on score (first gets rank 1, second gets rank 2, etc.)
+        # Assign ranks based on score
         rank = 1
         for match_score in match_scores:
+            print(f"Assigning rank {rank} to participant {match_score.participant}.")
             match_score.rank = rank
             match_score.save()
             rank += 1
 
         # Return the updated fixture data
         data = FixtureSerializer(fixture).data
-        return Response({"success": True, "message": "Verified winner set successfully and scores updated", "data": data}, status=status.HTTP_200_OK)
+        print(f"Response data: {data}")
+        return Response({"success": True, "message": "Verified winner set successfully and scores created", "data": data}, status=status.HTTP_200_OK)
 
     except Participant.DoesNotExist:
+        print(f"Participant with id {winner_id} does not exist.")
         return Response({"success": False, "message": "Invalid winner_id", "data": {}}, status=status.HTTP_404_NOT_FOUND)
+
 @api_view(['POST'])
 def set_verified_winner_all(request):
     fixture_winners = request.data.get("fixture_winners")
@@ -1905,7 +1921,9 @@ def featured_tournament_detail(request, pk):
 # Function-based view for listing all banner images
 @api_view(['GET'])
 def banner_image_list(request):
-    banner_images = BannerImage.objects.all()
+    # Filter BannerImage objects where status is True
+    banner_images = BannerImage.objects.filter(tournament__is_active=True)
+
     if banner_images.exists():
         serializer = BannerImageSerializer(banner_images, many=True)
         return Response({
@@ -2066,7 +2084,7 @@ class TournamentViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def active(self, request):
         """API to get all tournaments where is_draft is False along with paid participants and disqualified players."""
-        active_tournaments = Tournament.objects.filter(is_draft=False)
+        active_tournaments = Tournament.objects.filter(is_draft=False).order_by('event_date')
 
         tournaments_data = []
         for tournament in active_tournaments:

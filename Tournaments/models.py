@@ -124,12 +124,12 @@ class FeaturedTournament(models.Model):
 
 
 class BannerImage(models.Model):
-    tournament = models.ForeignKey(Tournament, on_delete=models.CASCADE, related_name='banner_images')
+    title = models.CharField(max_length=255, default="Default Title")  # Added default
     image = models.ImageField(upload_to='tournament_banners/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Banner for {self.tournament.tournament_name} (Uploaded on {self.uploaded_at})"
+        return f"{self.title} (Uploaded on {self.uploaded_at})"
 class Fixture(models.Model):
     tournament = models.ForeignKey(Tournament, on_delete=models.CASCADE)
     participant1 = models.ForeignKey(Participant, related_name='fixture_participant1', on_delete=models.CASCADE)

@@ -16,8 +16,8 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'email', 'user_type', 'image', 'device_token', 'address', 
-            'visible_to_user', 'is_active', 'is_superuser', 'full_name', 
+            'id', 'username', 'email', 'user_type', 'image', 'device_token', 'address',
+            'visible_to_user', 'is_active', 'is_superuser', 'full_name',
             'longitude', 'latitude', 'Trade_radius', 'social_urls'
         ]
 
@@ -34,65 +34,95 @@ class AdminLoginSerializer(serializers.Serializer):
     def validate(self, data):
         email = data.get('email')
         password = data.get('password')
-        
+
         user = authenticate(email=email, password=password)
         if user is None:
             raise serializers.ValidationError("Invalid login credentials.")
-        
+
         # Check if the user is an admin
         if user.user_type != 'admin':
             raise serializers.ValidationError("Access denied. User is not an admin.")
-        
+
         # Check if the user is active
         if not user.is_active:
             raise serializers.ValidationError("This account is inactive.")
-        
+
         data['user'] = user
         return data
 
+# class SocialRegistrationSerializer(serializers.ModelSerializer):
+#     email = serializers.EmailField(required=True)
+#     full_name = serializers.CharField(required=False, allow_blank=True)
+#     origin = serializers.CharField(required=False, allow_blank=True)
+#     uid = serializers.CharField(required=False, allow_blank=True)
+
+#     class Meta:
+#         model = User
+#         fields = ['email', 'full_name', 'origin', 'uid']
+
+#     def create(self, validated_data):
+#         """
+#         Create a new user or update the existing user based on email.
+#         """
+#         email = validated_data.get('email')
+#         full_name = validated_data.get('full_name', '')
+#         origin = validated_data.get('origin', '')
+#         uid = validated_data.get('uid', '')
+
+#         # Check if the user already exists
+#         user, created = User.objects.get_or_create(email=email, defaults={
+#             'full_name': full_name,
+#             'origin': origin,
+#             'uid': uid,
+#         })
+
+#         # If user already exists, update the fields
+#         if not created:
+#             user.full_name = full_name
+#             user.origin = origin
+#             user.uid = uid
+#             user.save()
+
+#         return user
 class SocialRegistrationSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=True)
+    username = serializers.CharField(required=True)  # New field
     full_name = serializers.CharField(required=False, allow_blank=True)
-    username = serializers.CharField(required=False, allow_blank=True)
     origin = serializers.CharField(required=False, allow_blank=True)
     uid = serializers.CharField(required=False, allow_blank=True)
-    image = serializers.URLField(required=False, allow_blank=True)
 
     class Meta:
         model = User
-        fields = ['email', 'full_name','username', 'origin', 'uid', 'image']
+        fields = ['email', 'username', 'full_name', 'origin', 'uid']  # Include username
 
     def create(self, validated_data):
         """
         Create a new user or update the existing user based on email.
         """
         email = validated_data.get('email')
+        username = validated_data.get('username')  # Handle username
         full_name = validated_data.get('full_name', '')
-        username = validated_data.get('username', '')
         origin = validated_data.get('origin', '')
         uid = validated_data.get('uid', '')
-        image = validated_data.get('image', '')
 
         # Check if the user already exists
         user, created = User.objects.get_or_create(email=email, defaults={
-            'full_name': full_name,
             'username': username,
+            'full_name': full_name,
             'origin': origin,
             'uid': uid,
-            'image': image,
         })
 
         # If user already exists, update the fields
         if not created:
+            user.username = username  # Update username
             user.full_name = full_name
-            user.username = username
             user.origin = origin
             user.uid = uid
-            user.image = image
             user.save()
 
         return user
-  
+
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -113,7 +143,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             'longitude': {'required': False},  # Allow last_name to be optional
             'latitude': {'required': False},
              'contact' : {'required': False},
-           
+
 
 
 

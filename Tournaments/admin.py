@@ -104,7 +104,7 @@ class FeaturedTournamentAdmin(admin.ModelAdmin):
     search_fields = ('tournament__tournament_name',)
 
 # Register BannerImage model
-@admin.register(BannerImage)
-class BannerImageAdmin(admin.ModelAdmin):
-    list_display = ('id', 'tournament', 'image')
-    search_fields = ('tournament__tournament_name',)
+# @admin.register(BannerImage)
+# class BannerImageAdmin(admin.ModelAdmin):
+#     list_display = ('id', 'tournament', 'image')
+#     search_fields = ('tournament__tournament_name',)

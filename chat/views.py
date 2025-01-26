@@ -14,7 +14,7 @@ def create_chat_message(request):
             'message': 'Chat message created successfully.',
             'data': serializer.data
         }, status=status.HTTP_201_CREATED)
-    
+
     return Response({
         'success': False,
         'message': 'Failed to create chat message.',
@@ -35,7 +35,7 @@ def get_chat_messages_by_game(request, game_id):
                 "success": False,
                 "message": "No chat messages found for this game.",
                 "data": []
-            }, status=status.HTTP_404_NOT_FOUND)
+            }, status=status.HTTP_200_OK)
 
         # Serialize the messages
         serializer = ChatMessageSerializernew(messages, many=True)

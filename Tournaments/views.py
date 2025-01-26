@@ -13,10 +13,13 @@ from django.http import JsonResponse
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from notification.models import Notification
 from django.utils import timezone
 from .models import Tournament
 from django.utils.timezone import now
 import pytz  # To handle time zones
+# from django.views.decorators.csrf import csrf_exempt
+# from django.utils.decorators import method_decorator
 from .serializers import  MatchScoreSerializer,FixtureSerializernew, CardSerializer,DeckSerializercreate,TournamentSerializer,TournamentSerializernew, DraftTournamentSerializer,ParticipantSerializer,ParticipantSerializernew,ParticipantSerializernewforactivelist
 import random
 from datetime import datetime, timedelta
@@ -118,8 +121,9 @@ class UserInactiveTournamentsView(APIView):
             # Ensure you correctly filter by the 'active' field of the related 'tournament' model
             participants = Participant.objects.filter(
                 user=user,
-                tournament__is_active=False  # This is valid if 'active' is a boolean field on Tournament
-            )
+                tournament__is_active=False,
+                # This is valid if 'active' is a boolean field on Tournament
+            ).order_by('tournament__event_date')
 
             # Serialize the data with leaderboard rank
             serializer = ParticipantSerializernewhistory(participants, many=True)
@@ -351,62 +355,152 @@ def eliminate_participant(request, fixture_id):
 
 
 
-
-
-
-
-
-
-
 class TodayEventParticipantsView(APIView):
+    def create_notification(self, user, title, message, tournament):
+        """
+        Create a notification for the user if it hasn't been created already for this tournament.
+        """
+        notification_exists = Notification.objects.filter(
+            user=user, title=title, message=message
+        ).exists()
+
+        if notification_exists:
+            print(f"Notification already exists for tournament: {tournament.tournament_name}")
+        else:
+            notification = Notification.objects.create(user=user, title=title, message=message)
+            print(f"Notification created: {notification.title} - {notification.message}")
+
     def get(self, request, user_id):
         # Get today's date
         today = timezone.now().date()
         print(f"Today's date: {today}")
 
-        # Filter tournaments created by the given user and with today's event date
-        tournaments = Tournament.objects.filter(created_by=user_id, event_date=today)
+        # Fetch tournaments for today created by the user
+        tournaments = Tournament.objects.filter(created_by=user_id, event_date=today,is_active=True)
+        print(f"Found {tournaments.count()} tournaments for user ID {user_id}.")
 
-        # Prepare response data
         response_data = []
 
-        for tournament in tournaments:
-            # Get participants for the tournament
+        if not tournaments.exists():
+            print("No tournaments found for today.")
+            return Response(
+                {
+                    "success": False,
+                    "message": "No events found for today.",
+                    "data": [],
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        # Get the user instance
+        try:
+            user = User.objects.get(id=user_id)
+            print(f"User found: {user.username}")
+        except User.DoesNotExist:
+            print(f"User with ID {user_id} does not exist.")
+            return Response(
+                {"success": False, "message": "User not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        for index, tournament in enumerate(tournaments):
+            print(f"Processing tournament #{index + 1}: {tournament.tournament_name}")
+
+            # Get participants
             paid_participants = Participant.objects.filter(tournament=tournament, is_disqualified=False)
             disqualified_participants = Participant.objects.filter(tournament=tournament, is_disqualified=True)
+            print(f"  Paid participants count: {paid_participants.count()}")
+            print(f"  Disqualified participants count: {disqualified_participants.count()}")
 
-            # Serialize tournament and participants data
+            # Serialize data
             tournament_data = TournamentSerializernew(tournament).data
             paid_participants_data = ParticipantSerializer(paid_participants, many=True).data
             disqualified_participants_data = ParticipantSerializer(disqualified_participants, many=True).data
 
-            # Organize tournament details with participants into response format
+            # Add participants to tournament data
             tournament_data.update({
                 "paid_participants": paid_participants_data,
                 "disqualified_participants": disqualified_participants_data,
             })
             response_data.append(tournament_data)
-            print(f"Tournament: {tournament_data}")
-            print(f"Paid participants: {paid_participants_data}")
-            print(f"Disqualified participants: {disqualified_participants_data}")
 
-        # Set response status based on the presence of data
-        if response_data:
-            response = {
+            # Create a notification for this tournament if not already created
+            title = f"Reminder: {tournament.tournament_name}"
+            message = (
+                f"Your tournament '{tournament.tournament_name}' is happening today at "
+                f"{tournament.event_start_time}. Get ready!"
+            )
+            print(f"Checking notification for tournament: '{tournament.tournament_name}'")
+            self.create_notification(user, title, message, tournament)
+
+        # Send response
+        print(f"Total tournaments processed: {len(response_data)}")
+        return Response(
+            {
                 "success": True,
                 "message": "Today's event participants retrieved successfully.",
-                "data": response_data
-            }
-            return Response(response, status=status.HTTP_200_OK)
-        else:
-            response = {
-                "success": False,
-                "message": "No events found for today.",
-                "data": []
-            }
-            return Response(response, status=status.HTTP_200_OK)
+                "data": response_data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
+
+
+
+
+
+
+
+
+
+# class TodayEventParticipantsView(APIView):
+#     def get(self, request, user_id):
+#         # Get today's date
+#         today = timezone.now().date()
+#         print(f"Today's date: {today}")
+
+#         # Filter tournaments created by the given user and with today's event date
+#         tournaments = Tournament.objects.filter(created_by=user_id, event_date=today)
+
+#         # Prepare response data
+#         response_data = []
+
+#         for tournament in tournaments:
+#             # Get participants for the tournament
+#             paid_participants = Participant.objects.filter(tournament=tournament, is_disqualified=False)
+#             disqualified_participants = Participant.objects.filter(tournament=tournament, is_disqualified=True)
+
+#             # Serialize tournament and participants data
+#             tournament_data = TournamentSerializernew(tournament).data
+#             paid_participants_data = ParticipantSerializer(paid_participants, many=True).data
+#             disqualified_participants_data = ParticipantSerializer(disqualified_participants, many=True).data
+
+#             # Organize tournament details with participants into response format
+#             tournament_data.update({
+#                 "paid_participants": paid_participants_data,
+#                 "disqualified_participants": disqualified_participants_data,
+#             })
+#             response_data.append(tournament_data)
+#             print(f"Tournament: {tournament_data}")
+#             print(f"Paid participants: {paid_participants_data}")
+#             print(f"Disqualified participants: {disqualified_participants_data}")
+
+#         # Set response status based on the presence of data
+#         if response_data:
+#             response = {
+#                 "success": True,
+#                 "message": "Today's event participants retrieved successfully.",
+#                 "data": response_data
+#             }
+#             return Response(response, status=status.HTTP_200_OK)
+#         else:
+#             response = {
+#                 "success": False,
+#                 "message": "No events found for today.",
+#                 "data": []
+#             }
+#             return Response(response, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
@@ -423,7 +517,7 @@ def events_today(request, user_id):
         current_time = localtime()
         current_date = current_time.date()
 
-        # Filter participants
+        # Filter participants for the user
         participants = Participant.objects.filter(
             user_id=user_id,
             tournament__is_active=True,
@@ -431,7 +525,34 @@ def events_today(request, user_id):
             payment_status='paid'
         )
 
-        # Serialize the participants
+        # Get distinct tournaments for the user's paid events
+        tournaments = participants.values_list('tournament', flat=True).distinct()
+
+        # Notify participants for each tournament
+        for tournament_id in tournaments:
+            tournament_participants = Participant.objects.filter(
+                tournament_id=tournament_id,
+                payment_status='paid'
+            )
+
+            tournament = tournament_participants.first().tournament
+            notification_exists = Notification.objects.filter(
+                title=f"Reminder: '{tournament.tournament_name}' starts today!"
+            ).exists()
+
+            if not notification_exists:
+                # Create a notification for all participants of this tournament
+                for participant in tournament_participants:
+                    Notification.objects.create(
+                        user=participant.user,
+                        title=f"Reminder: '{tournament.tournament_name}' starts today!",
+                        message=(
+                            f"The tournament '{tournament.tournament_name}' is happening today at "
+                            f"{tournament.event_start_time}. Get ready!"
+                        )
+                    )
+
+        # Serialize the participants for the requesting user
         serializer = ParticipantSerializernew(participants, many=True)
 
         return Response({
@@ -443,24 +564,69 @@ def events_today(request, user_id):
             'current_time': current_time.strftime('%H:%M:%S')
         }, status=status.HTTP_200_OK)
 
-    except Participant.DoesNotExist:
-        return Response({
-            'success': False,
-            'message': 'No paid tournaments found for today.',
-            'data': [],
-            'timezone': "Asia/Karachi",
-            'current_date': current_time.date().strftime('%Y-%m-%d'),
-            'current_time': current_time.strftime('%H:%M:%S')
-        }, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({
             'success': False,
             'message': str(e),
             'data': [],
             'timezone': "Asia/Karachi",
-            'current_date': current_time.date().strftime('%Y-%m-%d'),
+            'current_date': current_date.strftime('%Y-%m-%d'),
             'current_time': current_time.strftime('%H:%M:%S')
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# @api_view(['GET'])
+# def events_today(request, user_id):
+#     """
+#     API to get paid events for a user that are scheduled for today.
+#     Expects 'user_id' as a URL parameter.
+#     """
+#     try:
+#         # Activate the timezone
+#         activate(pytz.timezone("Asia/Karachi"))
+
+#         # Current time and date in the set timezone
+#         current_time = localtime()
+#         current_date = current_time.date()
+
+#         # Filter participants
+#         participants = Participant.objects.filter(
+#             user_id=user_id,
+#             tournament__is_active=True,
+#             tournament__event_date=current_date,
+#             payment_status='paid'
+#         )
+
+#         # Serialize the participants
+#         serializer = ParticipantSerializernew(participants, many=True)
+
+#         return Response({
+#             'success': True,
+#             'message': "Paid tournaments retrieved successfully.",
+#             'data': serializer.data,
+#             'timezone': "Asia/Karachi",
+#             'current_date': current_date.strftime('%Y-%m-%d'),
+#             'current_time': current_time.strftime('%H:%M:%S')
+#         }, status=status.HTTP_200_OK)
+
+#     except Participant.DoesNotExist:
+#         return Response({
+#             'success': False,
+#             'message': 'No paid tournaments found for today.',
+#             'data': [],
+#             'timezone': "Asia/Karachi",
+#             'current_date': current_time.date().strftime('%Y-%m-%d'),
+#             'current_time': current_time.strftime('%H:%M:%S')
+#         }, status=status.HTTP_404_NOT_FOUND)
+#     except Exception as e:
+#         return Response({
+#             'success': False,
+#             'message': str(e),
+#             'data': [],
+#             'timezone': "Asia/Karachi",
+#             'current_date': current_time.date().strftime('%Y-%m-%d'),
+#             'current_time': current_time.strftime('%H:%M:%S')
+#         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # @api_view(['GET'])
 # def events_today(request, user_id):
@@ -1585,7 +1751,62 @@ def fetch_cards(request):
         return JsonResponse(formatted_cards, safe=False)
     else:
         return JsonResponse({"error": "Failed to fetch data from Magic: The Gathering API"}, status=response.status_code)
+@api_view(['POST'])
+def create_banner_image(request):
+    serializer = BannerImageSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response({
+            'success': True,
+            'message': 'Banner image created successfully.',
+            'data': serializer.data
+        }, status=status.HTTP_201_CREATED)
+    else:
+        return Response({
+            'success': False,
+            'message': 'Failed to create banner image.',
+            'data': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
 
+
+@api_view(['DELETE'])
+def delete_banner_image(request, banner_id):
+    try:
+        banner = BannerImage.objects.get(id=banner_id)
+        banner.delete()
+        return Response({
+            'success': True,
+            'message': 'Banner image deleted successfully.',
+            'data': None
+        }, status=status.HTTP_200_OK)
+    except BannerImage.DoesNotExist:
+        return Response({
+            'success': False,
+            'message': 'Banner image not found.',
+            'data': None
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': f'An error occurred: {str(e)}',
+            'data': None
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+@api_view(['GET'])
+def list_banner_images(request):
+    try:
+        banners = BannerImage.objects.all().order_by('-uploaded_at')
+        serializer = BannerImageSerializernew(banners, many=True)
+        return Response({
+            'success': True,
+            'message': 'Banner images retrieved successfully.',
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': f'An error occurred: {str(e)}',
+            'data': []
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 class PokemonCardsView(APIView):
     def get(self, request):
         url = "https://api.pokemontcg.io/v2/cards"
@@ -1736,22 +1957,49 @@ class TournamentByGameView(APIView):
             'message': 'Tournaments retrieved successfully.',
             'data': tournaments_data
         }, status=status.HTTP_200_OK)
-@api_view(['POST'])
-def create_banner_image(request):
-    serializer = newBannerImageSerializer(data=request.data)
-    if serializer.is_valid():
-        banner_image = serializer.save()
-        return Response({
-            'success': True,
-            'message': 'Banner image uploaded successfully.',
-            'data': BannerImageSerializer(banner_image).data
-        }, status=status.HTTP_201_CREATED)
 
-    return Response({
-        'success': False,
-        'message': 'Failed to upload banner image.',
-        'data': serializer.errors
-    }, status=status.HTTP_400_BAD_REQUEST)
+
+
+# @api_view(['POST'])
+# def create_banner_image(request):
+#     # Get tournament ID from the request data
+#     tournamentid = request.data.get('tournament')
+
+#     # Debugging: Print the tournament_id to make sure it's being received correctly
+#     print(f"Tournament ID received: {tournamentid}")
+
+#     # Check if the tournament_id is valid and exists in the request data
+#     if not tournamentid:
+#         return Response({
+#             'success': False,
+#             'message': 'Tournament ID is required.',
+#             'data': None
+#         }, status=status.HTTP_400_BAD_REQUEST)
+
+#     # Check if the tournament already has a banner image
+#     if BannerImage.objects.filter(tournament__id=tournamentid).exists():
+#         print(f"Banner image already exists for tournament ID: {tournamentid}")
+#         return Response({
+#             'success': False,
+#             'message': 'Banner image already available for this tournament.',
+#             'data': None
+#         }, status=status.HTTP_201_CREATED)  # Return 400 BAD REQUEST
+
+#     # If no banner image exists for the tournament, proceed with creation
+#     serializer = newBannerImageSerializer(data=request.data)
+#     if serializer.is_valid():
+#         banner_image = serializer.save()
+#         return Response({
+#             'success': True,
+#             'message': 'Banner image uploaded successfully.',
+#             'data': BannerImageSerializer(banner_image).data
+#         }, status=status.HTTP_201_CREATED)
+
+#     return Response({
+#         'success': False,
+#         'message': 'Failed to upload banner image.',
+#         'data': serializer.errors
+#     }, status=status.HTTP_400_BAD_REQUEST)
 @api_view(['POST'])
 def create_featured_tournament(request):
     print("Received request data:", request.data)  # Print incoming request data
@@ -1919,24 +2167,24 @@ def featured_tournament_detail(request, pk):
         }, status=status.HTTP_404_NOT_FOUND)
 
 # Function-based view for listing all banner images
-@api_view(['GET'])
-def banner_image_list(request):
-    # Filter BannerImage objects where status is True
-    banner_images = BannerImage.objects.filter(tournament__is_active=True)
+# @api_view(['GET'])
+# def banner_image_list(request):
+#     # Filter BannerImage objects where status is True
+#     banner_images = BannerImage.objects.filter(tournament__is_active=True)
 
-    if banner_images.exists():
-        serializer = BannerImageSerializer(banner_images, many=True)
-        return Response({
-            'success': True,
-            'message': 'Banner images retrieved successfully.',
-            'data': serializer.data
-        }, status=status.HTTP_200_OK)
-    else:
-        return Response({
-            'success': False,
-            'message': 'No banner images found.',
-            'data': []
-        }, status=status.HTTP_200_OK)
+#     if banner_images.exists():
+#         serializer = BannerImageSerializer(banner_images, many=True)
+#         return Response({
+#             'success': True,
+#             'message': 'Banner images retrieved successfully.',
+#             'data': serializer.data
+#         }, status=status.HTTP_200_OK)
+#     else:
+#         return Response({
+#             'success': False,
+#             'message': 'No banner images found.',
+#             'data': []
+#         }, status=status.HTTP_200_OK)
 
 # Function-based view for retrieving a specific banner image by id
 @api_view(['GET'])
@@ -1965,10 +2213,55 @@ def banner_image_detail(request, pk):
 
 
 
+# @api_view(['POST'])
+# def register_for_tournament(request, user_id):
+#     tournament_id = request.data.get('tournament')  # Get tournament ID from the request
+#     deck_id = request.data.get('deck')  # Get deck ID from the request
+
+#     # Check if the tournament and deck exist
+#     try:
+#         tournament = Tournament.objects.get(id=tournament_id)
+#         deck = Deck.objects.get(id=deck_id)
+#     except (Tournament.DoesNotExist, Deck.DoesNotExist) as e:
+#         return Response({"success": False, "message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+#     # Check if the participant already exists
+#     existing_participant = Participant.objects.filter(user_id=user_id, tournament=tournament).first()
+#     if existing_participant:
+#         return Response({
+#             "success": False,
+#             "message": "You are already registered for this tournament.",
+#             "data": ParticipantSerializer(existing_participant).data
+#         }, status=status.HTTP_400_BAD_REQUEST)
+
+#     # Create the participant
+#     participant = Participant.objects.create(
+#         user_id=user_id,
+#         tournament=tournament,
+#         deck=deck,
+#         payment_status="paid",
+
+#     )
+
+#     # Serialize the participant to return the response
+#     serializer = ParticipantSerializer(participant)
+
+#     return Response({
+#         "success": True,
+#         "message": "Registration successful.",
+#         "data": serializer.data
+#     })
+
 @api_view(['POST'])
 def register_for_tournament(request, user_id):
     tournament_id = request.data.get('tournament')  # Get tournament ID from the request
     deck_id = request.data.get('deck')  # Get deck ID from the request
+
+    # Convert user_id to integer (assuming it's passed as a string)
+    try:
+        user_id = int(user_id)
+    except ValueError:
+        return Response({"success": False, "message": "Invalid user ID"}, status=status.HTTP_400_BAD_REQUEST)
 
     # Check if the tournament and deck exist
     try:
@@ -1992,17 +2285,47 @@ def register_for_tournament(request, user_id):
         tournament=tournament,
         deck=deck,
         payment_status="paid",
-
     )
 
     # Serialize the participant to return the response
     serializer = ParticipantSerializer(participant)
+
+    # Create notification for the user who registered
+    create_notification(user_id, "Tournament Registration", f"You have successfully registered for the tournament: {tournament.tournament_name}")
+
+    # Create notification for the user who created the tournament
+    if tournament.created_by:  # Assuming the tournament has a 'created_by' field containing email
+        try:
+            participentuser=User.objects.get(id=user_id)
+            creator_user = User.objects.get(email=tournament.created_by)
+            print(f"User ID for tournament creator {creator_user.username}: {creator_user.id}")
+            create_notification(creator_user.id, "New Registration", f"New registration for your tournament: {tournament.tournament_name}. Participant: {participentuser.username}")
+        except User.DoesNotExist:
+            print(f"Error: User with email {tournament.created_by} not found.")
+    else:
+        print(f"No 'created_by' field found for tournament {tournament.tournament_name}")
 
     return Response({
         "success": True,
         "message": "Registration successful.",
         "data": serializer.data
     })
+
+
+def create_notification(user, title, message):
+    """
+    Create a notification for the user without storing the tournament in the model.
+    """
+    try:
+        print(f"Attempting to create notification for user ID: {user} with title: {title}")
+        # Create the notification without tournament field
+        notification = Notification.objects.create(
+            user_id=user, title=title, message=message
+        )
+        print(f"Notification created: {notification.title} - {notification.message}")
+    except Exception as e:
+        print(f"Error creating notification for user {user}: {e}")
+
 
 
 class TournamentViewSet(viewsets.ViewSet):
@@ -2084,8 +2407,35 @@ class TournamentViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def active(self, request):
         """API to get all tournaments where is_draft is False along with paid participants and disqualified players."""
-        active_tournaments = Tournament.objects.filter(is_draft=False).order_by('event_date')
+        # active_tournaments = Tournament.objects.filter(is_draft=False,event_date__gt=datetime.now()).order_by('event_date')
+        active_tournaments = Tournament.objects.filter(is_draft=False).order_by('-event_date')
+        tournaments_data = []
+        for tournament in active_tournaments:
+            # Filter participants who have paid and are not disqualified
+            paid_participants = Participant.objects.filter(
+                tournament=tournament, payment_status='paid', is_disqualified=False
+            ).select_related('user')
 
+            # Filter participants who are disqualified
+            disqualified_participants = Participant.objects.filter(
+                tournament=tournament, is_disqualified=True
+            ).select_related('user')
+
+            tournament_data = TournamentSerializernew(tournament).data
+            tournament_data['paid_participants'] = ParticipantSerializer(paid_participants, many=True).data
+            tournament_data['disqualified_participants'] = ParticipantSerializer(disqualified_participants, many=True).data
+            tournaments_data.append(tournament_data)
+
+        return Response({
+            'success': True,
+            'message': 'Active tournaments retrieved successfully.',
+            'data': tournaments_data
+        }, status=status.HTTP_200_OK)
+    @action(detail=False, methods=['get'])
+    def newactive(self, request):
+        """API to get all tournaments where is_draft is False along with paid participants and disqualified players."""
+        active_tournaments = Tournament.objects.filter(is_draft=False,event_date__gt=datetime.now()).order_by('event_date')
+        # active_tournaments = Tournament.objects.filter(is_draft=False).order_by('event_date')
         tournaments_data = []
         for tournament in active_tournaments:
             # Filter participants who have paid and are not disqualified
@@ -2346,7 +2696,7 @@ class UserInactiveTournamentsAdminView(APIView):
             inactive_tournaments = Tournament.objects.filter(
                 created_by=user,
                 is_active=False
-            )
+            ).order_by('-event_date')
 
             # Step 3: Fetch participants for the filtered tournaments
             participants = Participant.objects.filter(

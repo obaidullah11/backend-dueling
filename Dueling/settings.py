@@ -99,6 +99,8 @@ INSTALLED_APPS = [
     'corsheaders',
     'Tournaments',
     'support',
+    'notification',
+    'knet',
     # 'Duelingproducts',
     # 'notifications',
 

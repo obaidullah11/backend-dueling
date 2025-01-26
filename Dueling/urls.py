@@ -11,7 +11,8 @@ urlpatterns = [
     path('', include('Tournaments.urls')),
     path('', include('chat.urls')),
     path('', include('support.urls')),
-    # path('', include('fixtures.urls')),
+    path('', include('notification.urls')),
+    path('', include('knet.urls')),
 
     # Add path for WebSocket connections
 

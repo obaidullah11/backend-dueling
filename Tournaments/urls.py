@@ -23,7 +23,8 @@ urlpatterns = [
     path('tournaments_events/<int:game_id>/', TournamentByGameView.as_view(), name='tournaments_by_game'),
     path('api/participants/<int:user_id>/', UserParticipantsView.as_view(), name='user-participants'),
     # URL for listing all banner images
-    path('banner-images/', banner_image_list, name='banner_image_list'),
+    path('delete_banner/<int:banner_id>/', delete_banner_image, name='delete-banner'),
+    path('banner-images/', list_banner_images, name='banner_image_list'),
     path('pokemon_cards/', PokemonCardsView.as_view(), name='pokemon-cards'),
     path('magicthegatherin_cards/', fetch_cards, name='fetch_cards'),
     path('add_decks/<int:deck_id>/', AddMultipleCardsView.as_view(), name='add-multiple-cards'),
@@ -33,6 +34,7 @@ urlpatterns = [
     path('banner-images/<int:pk>/', banner_image_detail, name='banner_image_detail'),
     path('tournaments/draft/create/<int:user_id>/', TournamentViewSet.as_view({'post': 'save_draft'}), name='save_draft'),
     path('tournaments/active/', TournamentViewSet.as_view({'get': 'active'}), name='active_tournaments'),
+    path('tournaments/active/new/', TournamentViewSet.as_view({'get': 'newactive'}), name='active_tournaments'),
     path('tournaments/drafts/<int:user_id>/', TournamentViewSet.as_view({'get': 'drafts'}), name='drafts_by_user'),
     path('tournaments/<int:pk>/', TournamentViewSet.as_view({'get': 'retrieve', 'put': 'update'}), name='tournament_detail'),
     path('tournaments/<int:pk>/convert_to_actual/', TournamentViewSet.as_view({'post': 'convert_to_actual'}), name='convert_draft_to_actual'),

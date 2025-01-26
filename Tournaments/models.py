@@ -31,12 +31,60 @@ class CustomImageField(models.ImageField):
                 )
 
         return super().clean(value, model_instance)
+class Staff(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='staff_roles')
+    role = models.CharField(max_length=50)  # e.g., 'judge', 'organizer', 'admin'
+    is_active = models.BooleanField(default=True)
 
+    def __str__(self):
+        return f"{self.user.username} - {self.role}"
 class Tournament(models.Model):
+    EVENT_TYPES = [
+        ('ONLINE', 'Online Tournament'),
+        ('OFFLINE', 'Offline Tournament'),
+        ('HYBRID', 'Hybrid Tournament'),
+    ]
+    TOURNAMENT_STYLES = [
+        ('CONSTRUCTED_ADVANCED', 'Constructed - Advanced'),
+        ('CONSTRUCTED_TRADITIONAL', 'Constructed - Traditional'),
+        ('SEALED', 'Sealed'),
+        ('OPEN_DUELING', 'Open Dueling'),
+    ]
+    TOURNAMENT_STRUCTURES = [
+        ('SWISS_DRAW', 'Swiss Draw'),
+        ('SINGLE_ELIMINATION', 'Single-Elimination'),
+    ]
+    PLAYER_STRUCTURES = [
+        ('INDIVIDUAL', 'Individual'),
+        ('TAG_DUELING', 'Tag Dueling'),
+        ('THREE_PLAYER_TEAM', 'Three-Player Team'),
+        ('FOUR_PLAYER_TEAM', 'Four-Player Team'),
+        ('FIVE_PLAYER_TEAM', 'Five-Player Team'),
+    ]
+    event_type = models.CharField(
+        max_length=10,
+        choices=EVENT_TYPES,
+        default='ONLINE'
+    )
+    tournament_style = models.CharField(
+        max_length=25,
+        choices=TOURNAMENT_STYLES,
+        default='CONSTRUCTED_ADVANCED'
+    )
+    tournament_structure = models.CharField(
+        max_length=20,
+        choices=TOURNAMENT_STRUCTURES,
+        default='SWISS_DRAW'
+    )
+    player_structure = models.CharField(
+        max_length=20,
+        choices=PLAYER_STRUCTURES,
+        default='INDIVIDUAL'
+    )
     tournament_name = models.CharField(max_length=255)
     email_address = models.EmailField()
     contact_number = models.CharField(max_length=15)
-
+    staff = models.ManyToManyField(Staff, related_name='tournaments', blank=True)
     # New fields for event details
     event_date = models.DateField()  # The date when the event will occur
     event_start_time = models.TimeField()  # The start time of the event

@@ -9,7 +9,14 @@ from users.models import User
 from rest_framework import serializers
 from .models import Tournament, Participant, MatchScore
 
-
+class StaffSerializer(serializers.ModelSerializer):
+    user = serializers.CharField(source='user.username')  # Serialize username of the associated user
+    role = serializers.CharField()  # Serialize the role field
+    is_active = serializers.BooleanField()  # Serialize the is_active field
+    
+    class Meta:
+        model = Staff
+        fields = ['user', 'role', 'is_active'] 
 
 
 
@@ -50,43 +57,116 @@ class CardSerializer(serializers.ModelSerializer):
 
 #         # Call the super class create method with updated validated_data
 #         return super().create(validated_data)
+# class TournamentSerializer(serializers.ModelSerializer):
+#     game_name = serializers.CharField(write_only=True)  # Field for passing the game name
+#     created_by = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), write_only=True)  # User creating the tournament
+
+#     class Meta:
+#         model = Tournament
+#         fields = [
+#             'id', 'tournament_name', 'email_address', 'contact_number',
+#             'event_date', 'event_start_time', 'last_registration_date',
+#             'tournament_fee', 'banner_image', 'venue', 'game_name', 'is_draft',
+#             'created_by', 'created_at', 'featured', 'is_active',
+#         ]
+
+#     def create(self, validated_data):
+#         # Extract game_name and remove it from validated_data
+#         game_name = validated_data.pop('game_name')
+
+#         # Attempt to fetch the Game instance
+#         try:
+#             game = Game.objects.get(name=game_name)
+#         except Game.DoesNotExist:
+#             raise serializers.ValidationError({
+#                 'game_name': f"A game with the name '{game_name}' does not exist. Please provide a valid game name."
+#             })
+
+#         # Assign the found game instance to the 'game' field in validated_data
+#         validated_data['game'] = game
+
+#         # Set `is_active` to True explicitly
+#         validated_data['is_active'] = True
+
+#         # Check if created_by is provided
+#         if 'created_by' not in validated_data:
+#             raise serializers.ValidationError({'created_by': 'This field is required.'})
+
+#         # Call the super class create method with updated validated_data
+#         return super().create(validated_data)
 class TournamentSerializer(serializers.ModelSerializer):
-    game_name = serializers.CharField(write_only=True)  # Field for passing the game name
-    created_by = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), write_only=True)  # User creating the tournament
+    game_name = serializers.CharField(write_only=True, help_text="Name of the game to associate with the tournament")
+    created_by = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        write_only=True,
+        help_text="User ID creating the tournament"
+    )
+    staff_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Staff.objects.all(),
+        many=True,
+        write_only=True,
+        required=False,
+        help_text="IDs of staff members associated with the tournament"
+    )
+    event_type_display = serializers.CharField(source='get_event_type_display', read_only=True)
+    tournament_style_display = serializers.CharField(source='get_tournament_style_display', read_only=True)
+    tournament_structure_display = serializers.CharField(source='get_tournament_structure_display', read_only=True)
+    player_structure_display = serializers.CharField(source='get_player_structure_display', read_only=True)
 
     class Meta:
         model = Tournament
         fields = [
-            'id', 'tournament_name', 'email_address', 'contact_number',
-            'event_date', 'event_start_time', 'last_registration_date',
-            'tournament_fee', 'banner_image', 'venue', 'game_name', 'is_draft',
-            'created_by', 'created_at', 'featured', 'is_active',
+            'id', 'tournament_name', 'email_address', 'contact_number', 'event_date', 'event_start_time',
+            'last_registration_date', 'tournament_fee', 'banner_image', 'venue', 'game_name', 'is_draft',
+            'created_by', 'created_at', 'featured', 'is_active', 'event_type', 'tournament_style',
+            'tournament_structure', 'player_structure', 'event_type_display', 'tournament_style_display',
+            'tournament_structure_display', 'player_structure_display', 'staff_ids',
         ]
+        read_only_fields = ['created_at', 'is_active', 'event_type_display', 'tournament_style_display', 
+                            'tournament_structure_display', 'player_structure_display']
 
     def create(self, validated_data):
-        # Extract game_name and remove it from validated_data
+        # Extract game_name and staff_ids from validated_data
+        print("Validating data:", validated_data)  # Print the entire validated data
         game_name = validated_data.pop('game_name')
+        staff_ids = validated_data.pop('staff_ids', [])
+        
+        print(f"Game Name: {game_name}")  # Print the game name being processed
+        print(f"Staff IDs: {staff_ids}")  # Print the staff IDs being processed
 
-        # Attempt to fetch the Game instance
+        # Retrieve the Game instance by name
         try:
             game = Game.objects.get(name=game_name)
+            print(f"Game found: {game.name}")  # Print the game found in the database
         except Game.DoesNotExist:
+            print(f"Game with name '{game_name}' does not exist.")  # Print error if game doesn't exist
             raise serializers.ValidationError({
                 'game_name': f"A game with the name '{game_name}' does not exist. Please provide a valid game name."
             })
 
-        # Assign the found game instance to the 'game' field in validated_data
+        # Add the fetched game instance to validated_data
         validated_data['game'] = game
 
-        # Set `is_active` to True explicitly
+        # Ensure `is_active` is explicitly set to True
         validated_data['is_active'] = True
+        print(f"Validated data after adding game and is_active: {validated_data}")  # Print after adding game and is_active
 
-        # Check if created_by is provided
+        # Validate the presence of `created_by`
         if 'created_by' not in validated_data:
+            print("Created_by field is missing!")  # Print message if created_by is missing
             raise serializers.ValidationError({'created_by': 'This field is required.'})
 
-        # Call the super class create method with updated validated_data
-        return super().create(validated_data)
+        # Create the Tournament instance
+        print("Creating tournament instance...")  # Print before creating the tournament instance
+        tournament = super().create(validated_data)
+
+        # Assign staff to the tournament if staff_ids is provided
+        if staff_ids:
+            print(f"Assigning staff: {staff_ids}")  # Print the staff IDs being assigned to the tournament
+            tournament.staff.set(staff_ids)
+
+        print(f"Tournament created with ID: {tournament.id}")  # Print the ID of the created tournament
+        return tournament
 
 class DeckSerializerfordeck(serializers.ModelSerializer):
     cards = CardSerializer(many=True, read_only=True)  # Add this line to include card data
@@ -149,6 +229,80 @@ class DraftTournamentSerializer(serializers.ModelSerializer):
         return instance
 
 
+class TournamentSerializerupdate(serializers.ModelSerializer): 
+    game_name = serializers.CharField(write_only=True, help_text="Name of the game to associate with the tournament")
+    created_by = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        write_only=True,
+        help_text="User ID creating the tournament"
+    )
+    staff = StaffSerializer(many=True, read_only=True)  # Use the StaffSerializer to include staff data
+    staff_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Staff.objects.all(),
+        many=True,
+        write_only=True,
+        required=False,
+        help_text="IDs of staff members associated with the tournament"
+    )
+    event_type_display = serializers.CharField(source='get_event_type_display', read_only=True)
+    tournament_style_display = serializers.CharField(source='get_tournament_style_display', read_only=True)
+    tournament_structure_display = serializers.CharField(source='get_tournament_structure_display', read_only=True)
+    player_structure_display = serializers.CharField(source='get_player_structure_display', read_only=True)
+
+    class Meta:
+        model = Tournament
+        fields = [
+            'id', 'tournament_name', 'email_address', 'contact_number', 'event_date', 'event_start_time',
+            'last_registration_date', 'tournament_fee', 'banner_image', 'venue', 'game_name', 'is_draft',
+            'created_by', 'created_at', 'featured', 'is_active', 'event_type', 'tournament_style',
+            'tournament_structure', 'player_structure', 'event_type_display', 'tournament_style_display',
+            'tournament_structure_display', 'player_structure_display', 'staff', 'staff_ids',
+        ]
+        read_only_fields = ['created_at', 'is_active', 'event_type_display', 'tournament_style_display', 
+                            'tournament_structure_display', 'player_structure_display']
+
+    def create(self, validated_data):
+        # Extract game_name and staff_ids from validated_data
+        print("Validating data:", validated_data)  # Print the entire validated data
+        game_name = validated_data.pop('game_name')
+        staff_ids = validated_data.pop('staff_ids', [])
+        
+        print(f"Game Name: {game_name}")  # Print the game name being processed
+        print(f"Staff IDs: {staff_ids}")  # Print the staff IDs being processed
+
+        # Retrieve the Game instance by name
+        try:
+            game = Game.objects.get(name=game_name)
+            print(f"Game found: {game.name}")  # Print the game found in the database
+        except Game.DoesNotExist:
+            print(f"Game with name '{game_name}' does not exist.")  # Print error if game doesn't exist
+            raise serializers.ValidationError({
+                'game_name': f"A game with the name '{game_name}' does not exist. Please provide a valid game name."
+            })
+
+        # Add the fetched game instance to validated_data
+        validated_data['game'] = game
+
+        # Ensure `is_active` is explicitly set to True
+        validated_data['is_active'] = True
+        print(f"Validated data after adding game and is_active: {validated_data}")  # Print after adding game and is_active
+
+        # Validate the presence of `created_by`
+        if 'created_by' not in validated_data:
+            print("Created_by field is missing!")  # Print message if created_by is missing
+            raise serializers.ValidationError({'created_by': 'This field is required.'})
+
+        # Create the Tournament instance
+        print("Creating tournament instance...")  # Print before creating the tournament instance
+        tournament = super().create(validated_data)
+
+        # Assign staff to the tournament if staff_ids is provided
+        if staff_ids:
+            print(f"Assigning staff: {staff_ids}")  # Print the staff IDs being assigned to the tournament
+            tournament.staff.set(staff_ids)
+
+        print(f"Tournament created with ID: {tournament.id}")  # Print the ID of the created tournament
+        return tournament
 
 class GameSerializer(serializers.ModelSerializer):
     class Meta:
@@ -187,11 +341,61 @@ class ParticipantSerializerforfixture(serializers.ModelSerializer):
         model = Participant
         fields = ['id', 'user', 'tournament','tournament_name', 'deck_name', 'registration_date', 'payment_status', 'total_score','is_ready']
 
+# class TournamentSerializernew(serializers.ModelSerializer):
+#     participants = ParticipantSerializer(many=True, read_only=True)  # Include participants
+#     game_name = serializers.CharField(source='game.name', read_only=True)
+#     created_by = serializers.CharField(source='created_by.username', read_only=True)
+#     createdby_user_image = serializers.CharField(source='created_by.image', read_only=True)
+#     class Meta:
+#         model = Tournament
+#         fields = [
+#             'id',
+#             'tournament_name',
+#             'email_address',
+#             'contact_number',
+#             'event_date',
+#             'event_start_time',
+#             'last_registration_date',
+#             'tournament_fee',
+#             'banner_image',
+#             'venue',
+#             'is_draft',
+#             'game_name',
+#             'created_by',
+#             'created_at',
+#             'featured',
+#             'participants' ,
+#             'is_active',
+#             'createdby_user_image'# Add this line
+#         ]
+#     def to_representation(self, instance):
+#         representation = super().to_representation(instance)
+
+#         # Get the current request from the context
+#         request = self.context.get('request')
+
+#         # Define the base URL for media files
+#         base_url = "https://dueling.pythonanywhere.com/media/"
+
+#         # Construct the absolute URL for the image
+#         if 'createdby_user_image' in representation and representation['createdby_user_image']:
+#             representation['createdby_user_image'] = f"{base_url}{representation['createdby_user_image']}"
+
+#         return representation
+ # Adjust fields as necessary
+ # Adjust the fields as needed
+
 class TournamentSerializernew(serializers.ModelSerializer):
     participants = ParticipantSerializer(many=True, read_only=True)  # Include participants
     game_name = serializers.CharField(source='game.name', read_only=True)
     created_by = serializers.CharField(source='created_by.username', read_only=True)
     createdby_user_image = serializers.CharField(source='created_by.image', read_only=True)
+    event_type = serializers.CharField(source='get_event_type_display', read_only=True)  # Readable event type
+    tournament_style = serializers.CharField(source='get_tournament_style_display', read_only=True)  # Readable tournament style
+    tournament_structure = serializers.CharField(source='get_tournament_structure_display', read_only=True)  # Readable tournament structure
+    player_structure = serializers.CharField(source='get_player_structure_display', read_only=True)  # Readable player structure
+    staff = StaffSerializer(many=True, read_only=True)  # Include staff
+    
     class Meta:
         model = Tournament
         fields = [
@@ -210,10 +414,16 @@ class TournamentSerializernew(serializers.ModelSerializer):
             'created_by',
             'created_at',
             'featured',
-            'participants' ,
+            'participants',
             'is_active',
-            'createdby_user_image'# Add this line
+            'createdby_user_image',
+            'event_type',  # Added event type
+            'tournament_style',  # Added tournament style
+            'tournament_structure',  # Added tournament structure
+            'player_structure',  # Added player structure
+            'staff',  # Added staff
         ]
+    
     def to_representation(self, instance):
         representation = super().to_representation(instance)
 
@@ -228,7 +438,6 @@ class TournamentSerializernew(serializers.ModelSerializer):
             representation['createdby_user_image'] = f"{base_url}{representation['createdby_user_image']}"
 
         return representation
-
 
 class FeaturedTournamentSerializer(serializers.ModelSerializer):
     tournament = TournamentSerializer()

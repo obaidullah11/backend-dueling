@@ -53,18 +53,49 @@ class GameAdmin(admin.ModelAdmin):
     image_preview.short_description = 'Image Preview'
 @admin.register(Tournament)
 class TournamentAdmin(admin.ModelAdmin):
-    # Updated list_display to show new fields
     list_display = (
-        'id', 'tournament_name', 'email_address', 'contact_number',
-        'event_date', 'event_start_time', 'last_registration_date',
-        'tournament_fee', 'game','is_active',
+        'id', 'tournament_name', 'event_type', 'tournament_style',
+        'tournament_structure', 'player_structure', 'email_address',
+        'contact_number', 'event_date', 'event_start_time',
+        'last_registration_date', 'tournament_fee', 'venue',
+        'game', 'is_draft', 'is_active', 'featured'
     )
 
-    # Updated list_filter to filter by event_date and game
-    list_filter = ('event_date', 'game')
+    list_filter = (
+        'event_type', 'tournament_style', 'tournament_structure',
+        'player_structure', 'event_date', 'game', 'is_draft',
+        'is_active', 'featured'
+    )
 
-    # Keep the search fields as they are relevant
-    search_fields = ('tournament_name', 'email_address', 'contact_number')
+    search_fields = (
+        'tournament_name', 'email_address', 'contact_number',
+        'venue', 'created_by__username'
+    )
+
+    # Optional: Add fields to be displayed in fieldsets for better organization
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('tournament_name', 'game', 'created_by')
+        }),
+        ('Tournament Settings', {
+            'fields': ('event_type', 'tournament_style', 'tournament_structure', 'player_structure')
+        }),
+        ('Contact Information', {
+            'fields': ('email_address', 'contact_number', 'venue')
+        }),
+        ('Event Details', {
+            'fields': ('event_date', 'event_start_time', 'last_registration_date', 'tournament_fee')
+        }),
+        ('Media', {
+            'fields': ('banner_image',)
+        }),
+        ('Status', {
+            'fields': ('is_draft', 'is_active', 'featured')
+        }),
+        ('Staff', {
+            'fields': ('staff',)
+        }),
+    )
 class ParticipantAdmin(admin.ModelAdmin):
     list_display = ('id','user', 'tournament', 'registration_date', 'payment_status', 'total_score','is_ready')  # Fields to display in the admin list view
     search_fields = ('user__username', 'tournament__tournament_name')  # Allow searching by user or tournament name
@@ -108,3 +139,9 @@ class FeaturedTournamentAdmin(admin.ModelAdmin):
 # class BannerImageAdmin(admin.ModelAdmin):
 #     list_display = ('id', 'tournament', 'image')
 #     search_fields = ('tournament__tournament_name',)
+
+@admin.register(Staff)
+class StaffAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'role')
+    list_filter = ('role',)
+    search_fields = ('user__username', 'role')

@@ -1916,7 +1916,25 @@ class UserParticipantsView(APIView):
             }, status=status.HTTP_404_NOT_FOUND)
 
 
-
+class StaffListView(APIView):
+    def get(self, request):
+        try:
+            # Fetch all staff records
+            staff_members = Staff.objects.all()
+            serializer = StaffSerializer(staff_members, many=True)
+            data = serializer.data
+            response = {
+                'success': True,
+                'message': 'Staff records fetched successfully.',
+                'data': data
+            }
+            return Response(response, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': str(e),
+                'data': []
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 

@@ -101,6 +101,7 @@ INSTALLED_APPS = [
     'support',
     'notification',
     'knet',
+    
     # 'Duelingproducts',
     # 'notifications',
 

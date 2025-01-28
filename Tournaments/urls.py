@@ -58,7 +58,7 @@ urlpatterns = [
     path('admintoday/<int:user_id>/', TodayEventParticipantsView.as_view(), name='today_event_participants'),
     path('eliminate-participant/<int:fixture_id>/', eliminate_participant, name='eliminate_participant'),
     path('adminfixturelist/<int:tournament_id>/', admingetallTournamentFixturesView.as_view(), name='tournament-fixtures'),
-
+    path('getallstaff/', StaffListView.as_view(), name='today_event_participants'),
 
 
     # # history

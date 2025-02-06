@@ -9,14 +9,22 @@ from users.models import User
 from rest_framework import serializers
 from .models import Tournament, Participant, MatchScore
 
+class StaffSerializern(serializers.ModelSerializer):
+    user = serializers.CharField(source='user.username')  # Serialize username of the associated user
+    role = serializers.CharField()  # Serialize the role field
+    is_active = serializers.BooleanField()  # Serialize the is_active field
+
+    class Meta:
+        model = Staff
+        fields = ['id','user', 'role', 'is_active']
 class StaffSerializer(serializers.ModelSerializer):
     user = serializers.CharField(source='user.username')  # Serialize username of the associated user
     role = serializers.CharField()  # Serialize the role field
     is_active = serializers.BooleanField()  # Serialize the is_active field
-    
+
     class Meta:
         model = Staff
-        fields = ['user', 'role', 'is_active'] 
+        fields = ['user', 'role', 'is_active']
 
 
 
@@ -112,6 +120,7 @@ class TournamentSerializer(serializers.ModelSerializer):
     tournament_style_display = serializers.CharField(source='get_tournament_style_display', read_only=True)
     tournament_structure_display = serializers.CharField(source='get_tournament_structure_display', read_only=True)
     player_structure_display = serializers.CharField(source='get_player_structure_display', read_only=True)
+    banner_image = serializers.CharField(allow_blank=True, required=False)
 
     class Meta:
         model = Tournament
@@ -122,7 +131,7 @@ class TournamentSerializer(serializers.ModelSerializer):
             'tournament_structure', 'player_structure', 'event_type_display', 'tournament_style_display',
             'tournament_structure_display', 'player_structure_display', 'staff_ids',
         ]
-        read_only_fields = ['created_at', 'is_active', 'event_type_display', 'tournament_style_display', 
+        read_only_fields = ['created_at', 'is_active', 'event_type_display', 'tournament_style_display',
                             'tournament_structure_display', 'player_structure_display']
 
     def create(self, validated_data):
@@ -130,7 +139,7 @@ class TournamentSerializer(serializers.ModelSerializer):
         print("Validating data:", validated_data)  # Print the entire validated data
         game_name = validated_data.pop('game_name')
         staff_ids = validated_data.pop('staff_ids', [])
-        
+
         print(f"Game Name: {game_name}")  # Print the game name being processed
         print(f"Staff IDs: {staff_ids}")  # Print the staff IDs being processed
 
@@ -229,7 +238,7 @@ class DraftTournamentSerializer(serializers.ModelSerializer):
         return instance
 
 
-class TournamentSerializerupdate(serializers.ModelSerializer): 
+class TournamentSerializerupdate(serializers.ModelSerializer):
     game_name = serializers.CharField(write_only=True, help_text="Name of the game to associate with the tournament")
     created_by = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
@@ -258,7 +267,7 @@ class TournamentSerializerupdate(serializers.ModelSerializer):
             'tournament_structure', 'player_structure', 'event_type_display', 'tournament_style_display',
             'tournament_structure_display', 'player_structure_display', 'staff', 'staff_ids',
         ]
-        read_only_fields = ['created_at', 'is_active', 'event_type_display', 'tournament_style_display', 
+        read_only_fields = ['created_at', 'is_active', 'event_type_display', 'tournament_style_display',
                             'tournament_structure_display', 'player_structure_display']
 
     def create(self, validated_data):
@@ -266,7 +275,7 @@ class TournamentSerializerupdate(serializers.ModelSerializer):
         print("Validating data:", validated_data)  # Print the entire validated data
         game_name = validated_data.pop('game_name')
         staff_ids = validated_data.pop('staff_ids', [])
-        
+
         print(f"Game Name: {game_name}")  # Print the game name being processed
         print(f"Staff IDs: {staff_ids}")  # Print the staff IDs being processed
 
@@ -303,6 +312,35 @@ class TournamentSerializerupdate(serializers.ModelSerializer):
 
         print(f"Tournament created with ID: {tournament.id}")  # Print the ID of the created tournament
         return tournament
+    def update(self, instance, validated_data):
+        # Extract game_name and staff_ids from validated_data
+        game_name = validated_data.pop('game_name', None)
+        staff_ids = validated_data.pop('staff_ids', None)
+
+        # Retrieve the Game instance by name if game_name is provided
+        if game_name:
+            try:
+                game = Game.objects.get(name=game_name)
+            except Game.DoesNotExist:
+                raise serializers.ValidationError({
+                    'game_name': f"A game with the name '{game_name}' does not exist. Please provide a valid game name."
+                })
+            validated_data['game'] = game
+
+        # Ensure `is_active` is explicitly set to True
+        validated_data['is_active'] = instance.is_active  # Preserve the current value of `is_active`
+
+        # Update the Tournament instance with validated_data
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+
+        # Update staff if staff_ids is provided
+        if staff_ids is not None:
+            instance.staff.set(staff_ids)
+
+        return instance
 
 class GameSerializer(serializers.ModelSerializer):
     class Meta:
@@ -394,8 +432,8 @@ class TournamentSerializernew(serializers.ModelSerializer):
     tournament_style = serializers.CharField(source='get_tournament_style_display', read_only=True)  # Readable tournament style
     tournament_structure = serializers.CharField(source='get_tournament_structure_display', read_only=True)  # Readable tournament structure
     player_structure = serializers.CharField(source='get_player_structure_display', read_only=True)  # Readable player structure
-    staff = StaffSerializer(many=True, read_only=True)  # Include staff
-    
+    staff = StaffSerializern(many=True, read_only=True)  # Include staff
+
     class Meta:
         model = Tournament
         fields = [
@@ -423,7 +461,7 @@ class TournamentSerializernew(serializers.ModelSerializer):
             'player_structure',  # Added player structure
             'staff',  # Added staff
         ]
-    
+
     def to_representation(self, instance):
         representation = super().to_representation(instance)
 

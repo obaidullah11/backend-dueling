@@ -1921,7 +1921,7 @@ class StaffListView(APIView):
         try:
             # Fetch all staff records
             staff_members = Staff.objects.all()
-            serializer = StaffSerializer(staff_members, many=True)
+            serializer = StaffSerializern(staff_members, many=True)
             data = serializer.data
             response = {
                 'success': True,
@@ -2096,15 +2096,15 @@ class TournamentCreateView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         print("Request Data:", request.data)  # Print the incoming request data for debugging
-        
+
         serializer = self.get_serializer(data=request.data)
         print("Serializer created with data:", request.data)  # Print the data passed to the serializer
-        
+
         if serializer.is_valid():
             print("Serializer is valid!")  # Print a message when the serializer is valid
             self.perform_create(serializer)
             print("Tournament created successfully.")  # Print success message after creation
-            
+
             return api_response(
                 success=True,
                 message="Tournament created successfully",
@@ -2461,40 +2461,40 @@ class TournamentViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def newactive(self, request):
         """API to get all tournaments where is_draft is False along with paid participants and disqualified players."""
-        
+
         print("Fetching active tournaments...")  # Print start of the process
-        
+
         # Fetch active tournaments with a date greater than or equal to today
         active_tournaments = Tournament.objects.filter(is_draft=False, event_date__gte=datetime.today().date()).order_by('event_date')
-        
+
         print(f"Found {len(active_tournaments)} active tournaments.")  # Log number of active tournaments
-        
+
         tournaments_data = []
         for tournament in active_tournaments:
             print(f"Processing tournament: {tournament.tournament_name}, Event Date: {tournament.event_date}")  # Log each tournament
-            
+
             # Filter participants who have paid and are not disqualified
             paid_participants = Participant.objects.filter(
                 tournament=tournament, payment_status='paid', is_disqualified=False
             ).select_related('user')
             print(f"Found {len(paid_participants)} paid participants.")  # Log number of paid participants
-            
+
             # Filter participants who are disqualified
             disqualified_participants = Participant.objects.filter(
                 tournament=tournament, is_disqualified=True
             ).select_related('user')
             print(f"Found {len(disqualified_participants)} disqualified participants.")  # Log number of disqualified participants
-            
+
             tournament_data = TournamentSerializernew(tournament).data
             tournament_data['paid_participants'] = ParticipantSerializer(paid_participants, many=True).data
             tournament_data['disqualified_participants'] = ParticipantSerializer(disqualified_participants, many=True).data
-            
+
             print(f"Data for tournament {tournament.tournament_name} serialized.")  # Log after serialization
-            
+
             tournaments_data.append(tournament_data)
 
         print(f"Total tournaments with data: {len(tournaments_data)}")  # Log total tournaments with data
-        
+
         return Response({
             'success': True,
             'message': 'Active tournaments retrieved successfully.',

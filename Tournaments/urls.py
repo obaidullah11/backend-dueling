@@ -6,6 +6,19 @@ from django.urls import path
 from .views import *
 
 urlpatterns = [
+
+
+   path('tournament_prize_update/<int:tournament_id>/', update_tournament_prizes, name='update-tournament-prizes'),
+
+
+
+
+
+
+
+
+
+
     path('adminstartmatch/<int:tournament_id>/', adminstartmatch.as_view(), name='update_fixtures_start_time'),
     path('participant_ready/<int:participant_id>/', UpdateParticipantReadyStatus.as_view(), name='update-participant-ready'),
     path('api/decks/create/', DeckCreateView.as_view(), name='create-deck'),
@@ -44,9 +57,18 @@ urlpatterns = [
     path('tournaments/<int:pk>/eligible-participants/', TournamentViewSet.as_view({'get': 'eligible_participants'}), name='eligible-participants'),
     path('tournaments/<int:pk>/Tournament_participants/', TournamentViewSet.as_view({'get': 'Tournament_participants'}), name='Tournament_participants'),
     path('gettournaments/', TournamentViewSet.as_view({'get': 'all_tournaments'}), name='all-tournaments'),  # To get all tournaments
+    
+    
+    
+    
+    
     path('create_feature/<int:tournament_id>/', UpdateFeaturedTournamentView.as_view(), name='update-featured'),
+    
+    
+    
     path('myfixture/<int:tournament_id>/<int:user_id>/', UserTournamentFixturesView.as_view(), name='user-tournament-fixtures'),
     path('tournaments/<int:pk>/create_round_1_fixtures/', FixtureViewSet.as_view({'post': 'create_round_1_fixtures'}), name='create-round-1-fixtures'),
+    path('tournaments/<int:pk>/create_round_1_swiss_fixtures/', SwissFixtureViewSet.as_view({'post': 'create_round_1_fixtures'}), name='create-round-1-fixtures'),
     path('fixtures/<int:pk>/advance_to_next_round/', FixtureViewSet.as_view({'post': 'advance_to_next_round'}), name='advance_to_next_round'),
     path('user/register/<int:user_id>/', register_for_tournament, name='register-for-tournament'),
     path('adminfixturelist/<int:tournament_id>/', admingetallTournamentFixturesView.as_view(), name='tournament-fixtures'),
@@ -54,6 +76,7 @@ urlpatterns = [
     path('set_verified_winner/<int:fixture_id>/', set_verified_winner, name='set_verified_winner'),
     path('set_verified_winnerall/', set_verified_winner_all, name='set_verified_winner'),
     path('fixtures/<int:pk>/create_fixtures/', FixtureViewSet.as_view({'post': 'manage_fixtures'}), name='manage-fixtures'),
+    path('fixtures/<int:pk>/swiss_create_fixtures/', SwissFixtureViewSet.as_view({'post': 'manage_fixtures'}), name='manage-fixtures'),
     path('getrecent/<int:user_id>/', events_today, name='events_today'),
     path('admintoday/<int:user_id>/', TodayEventParticipantsView.as_view(), name='today_event_participants'),
     path('eliminate-participant/<int:fixture_id>/', eliminate_participant, name='eliminate_participant'),

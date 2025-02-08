@@ -101,6 +101,10 @@ class Tournament(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     featured = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
+    round_time = models.IntegerField(blank=True, null=True, help_text="Round time in minutes")  
+    first_prize = models.CharField(max_length=255, blank=True, null=True)
+    second_prize = models.CharField(max_length=255, blank=True, null=True)
+    third_prize = models.CharField(max_length=255, blank=True, null=True)
     def __str__(self):
         return self.tournament_name
 class Deck(models.Model):
@@ -194,6 +198,30 @@ class Fixture(models.Model):
 
     def __str__(self):
         # Assuming `Participant` has a `user` field linked to `User` model
+        participant1_username = self.participant1.user.username if self.participant1 and hasattr(self.participant1, 'user') else "No Participant"
+
+        if self.participant2:
+            participant2_username = self.participant2.user.username if hasattr(self.participant2, 'user') else "No Participant"
+            return f"{self.tournament.tournament_name} - Round {self.round_number}: {participant1_username} vs {participant2_username}"
+        else:
+            return f"{self.tournament.tournament_name} - Round {self.round_number}: {participant1_username} has a bye"
+class SwissFixture(models.Model):
+    tournament = models.ForeignKey(Tournament, on_delete=models.CASCADE)
+    participant1 = models.ForeignKey(Participant, related_name='swiss_fixture_participant1', on_delete=models.CASCADE)
+    participant2 = models.ForeignKey(Participant, related_name='swiss_fixture_participant2', on_delete=models.CASCADE, null=True, blank=True)
+    round_number = models.IntegerField()
+    match_date = models.DateTimeField()
+    start_time = models.BooleanField(default=False)
+
+    nominated_winner = models.ForeignKey(Participant, null=True, blank=True, related_name='swiss_nominated_fixtures', on_delete=models.SET_NULL)
+    verified_winner = models.ForeignKey(Participant, null=True, blank=True, related_name='swiss_verified_fixtures', on_delete=models.SET_NULL)
+    is_verified = models.BooleanField(default=False)
+    is_tournament_completed = models.BooleanField(default=False)
+
+    participant1_score = models.IntegerField(default=0)  # Score for Swiss rankings
+    participant2_score = models.IntegerField(default=0)  # Score for Swiss rankings
+
+    def __str__(self):
         participant1_username = self.participant1.user.username if self.participant1 and hasattr(self.participant1, 'user') else "No Participant"
 
         if self.participant2:

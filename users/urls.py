@@ -1,11 +1,13 @@
 from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
-from users.views import UserDetailViewnew,UserDetailView,UpdatePasswordViewnew,UseradminLoginView,ResendOTPView,set_new_password,SocialLoginOrRegisterView,SendPasswordResetEmailView,VerifyOTP,list_users,UserUpdateAPIView, UserChangePasswordView, UserLoginView, UserProfileView, UserRegistrationView,UserDeleteAPIView, UserPasswordResetView
+from users.views import register_user_deck,CreateUserDeckParticipantAPIView,UserDetailViewnew,UserDetailView,UpdatePasswordViewnew,UseradminLoginView,ResendOTPView,set_new_password,SocialLoginOrRegisterView,SendPasswordResetEmailView,VerifyOTP,list_users,UserUpdateAPIView, UserChangePasswordView, UserLoginView, UserProfileView, UserRegistrationView,UserDeleteAPIView, UserPasswordResetView
 urlpatterns = [
     path('register/', UserRegistrationView.as_view(), name='register'),
     path('login/', UserLoginView.as_view(), name='login'),
     path('admin/login/', UseradminLoginView.as_view(), name='login'),
+    path('api/createnewuser/', CreateUserDeckParticipantAPIView.as_view(), name='create-user-deck-participant'),
+    path('api/deck_user/', register_user_deck, name='register_user'),
 
     path('me/', UserProfileView.as_view(), name='profile'),
     path('changepassword/<str:custom_id>/', UserChangePasswordView.as_view(), name='change-password'),

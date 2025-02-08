@@ -58,7 +58,8 @@ class TournamentAdmin(admin.ModelAdmin):
         'tournament_structure', 'player_structure', 'email_address',
         'contact_number', 'event_date', 'event_start_time',
         'last_registration_date', 'tournament_fee', 'venue',
-        'game', 'is_draft', 'is_active', 'featured'
+        'game', 'is_draft', 'is_active', 'featured',
+        'round_time', 'first_prize', 'second_prize', 'third_prize'  # New fields
     )
 
     list_filter = (
@@ -72,7 +73,6 @@ class TournamentAdmin(admin.ModelAdmin):
         'venue', 'created_by__username'
     )
 
-    # Optional: Add fields to be displayed in fieldsets for better organization
     fieldsets = (
         ('Basic Information', {
             'fields': ('tournament_name', 'game', 'created_by')
@@ -86,6 +86,9 @@ class TournamentAdmin(admin.ModelAdmin):
         ('Event Details', {
             'fields': ('event_date', 'event_start_time', 'last_registration_date', 'tournament_fee')
         }),
+        ('Prizes & Rounds', {  # New section
+            'fields': ('round_time', 'first_prize', 'second_prize', 'third_prize')
+        }),
         ('Media', {
             'fields': ('banner_image',)
         }),
@@ -96,6 +99,7 @@ class TournamentAdmin(admin.ModelAdmin):
             'fields': ('staff',)
         }),
     )
+
 class ParticipantAdmin(admin.ModelAdmin):
     list_display = ('id','user', 'tournament', 'registration_date', 'payment_status', 'total_score','is_ready')  # Fields to display in the admin list view
     search_fields = ('user__username', 'tournament__tournament_name')  # Allow searching by user or tournament name
@@ -145,3 +149,14 @@ class StaffAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'role')
     list_filter = ('role',)
     search_fields = ('user__username', 'role')
+
+
+
+
+@admin.register(SwissFixture)
+class SwissFixtureAdmin(admin.ModelAdmin):
+    list_display = ('tournament', 'round_number', 'participant1', 'participant2', 'match_date', 'start_time', 'is_verified', 'is_tournament_completed')
+    list_filter = ('tournament', 'round_number', 'is_verified', 'is_tournament_completed')
+    search_fields = ('tournament__tournament_name', 'participant1__user__username', 'participant2__user__username')
+    ordering = ('tournament', 'round_number', 'match_date')
+

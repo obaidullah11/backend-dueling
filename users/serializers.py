@@ -8,6 +8,32 @@ from users.utils import Util
 
 
 
+class UserSerializerfordeck(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)  # Allow writing but exclude from serialization
+    
+    class Meta:
+        model = User
+        fields = ['id', 'full_name', 'email', 'contact', 'username', 'password', 'user_type']
+
+    def create(self, validated_data):
+        raw_password = validated_data['password']  # Save raw password temporarily
+        user = User.objects.create_user(
+            email=validated_data['email'],
+            contact=validated_data['contact'],
+            username=validated_data['username'],
+            password=raw_password,
+            user_type=validated_data.get('user_type', 'client'),
+            origin="created by admin",
+            verify=True,
+            full_name=validated_data['full_name']
+        )
+        user.raw_password = raw_password  # Attach raw password to user instance (Not saved in DB)
+        return user
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['password'] = instance.raw_password if hasattr(instance, 'raw_password') else None  # Include raw password
+        return data
 
 
 class UserSerializer(serializers.ModelSerializer):

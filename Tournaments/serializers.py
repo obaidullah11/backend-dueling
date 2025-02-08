@@ -8,7 +8,10 @@ from .models import Tournament, Game,Deck,Participant,Fixture,MatchScore
 from users.models import User
 from rest_framework import serializers
 from .models import Tournament, Participant, MatchScore
-
+class TournamentUpdateprizeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tournament
+        fields = ['round_time', 'first_prize', 'second_prize', 'third_prize']
 class StaffSerializern(serializers.ModelSerializer):
     user = serializers.CharField(source='user.username')  # Serialize username of the associated user
     role = serializers.CharField()  # Serialize the role field
@@ -627,7 +630,21 @@ class newMatchScoreSerializer(serializers.ModelSerializer):
 
 
 
+class SwissFixtureSerializer(serializers.ModelSerializer):
+    # Adding readable nested fields for foreign keys
+    tournament_name = serializers.CharField(source='tournament.name', read_only=True)
+    participant1_name = serializers.CharField(source='participant1.name', read_only=True)
+    participant2_name = serializers.CharField(source='participant2.name', read_only=True)
+    nominated_winner_name = serializers.CharField(source='nominated_winner.name', read_only=True, required=False)
+    verified_winner_name = serializers.CharField(source='verified_winner.name', read_only=True, required=False)
 
+    class Meta:
+        model = SwissFixture
+        fields = [
+            'id', 'tournament', 'participant1', 'participant2', 'round_number', 'match_date',
+            'start_time', 'nominated_winner', 'verified_winner', 'is_verified', 'is_tournament_completed',
+            'tournament_name', 'participant1_name', 'participant2_name', 'nominated_winner_name', 'verified_winner_name'
+        ]
 
 
 # class TournamentSerializerhistory(serializers.ModelSerializer):

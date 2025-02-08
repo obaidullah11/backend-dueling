@@ -20,7 +20,7 @@ from django.utils.timezone import now
 import pytz  # To handle time zones
 # from django.views.decorators.csrf import csrf_exempt
 # from django.utils.decorators import method_decorator
-from .serializers import  MatchScoreSerializer,FixtureSerializernew, CardSerializer,DeckSerializercreate,TournamentSerializer,TournamentSerializernew, DraftTournamentSerializer,ParticipantSerializer,ParticipantSerializernew,ParticipantSerializernewforactivelist
+from .serializers import  TournamentUpdateprizeSerializer,MatchScoreSerializer,FixtureSerializernew, CardSerializer,DeckSerializercreate,TournamentSerializer,TournamentSerializernew, DraftTournamentSerializer,ParticipantSerializer,ParticipantSerializernew,ParticipantSerializernewforactivelist
 import random
 from datetime import datetime, timedelta
 import requests
@@ -43,6 +43,42 @@ from rest_framework import status
 from django.db.models import Q, Count
 from .models import Fixture, Participant
 from .serializers import FixtureSerializer,MatchScoreSerializer
+
+
+
+
+@api_view(['PATCH'])
+def update_tournament_prizes(request, tournament_id):
+    try:
+        tournament = Tournament.objects.get(id=tournament_id)
+    except Tournament.DoesNotExist:
+        return Response({
+            "success": False,
+            "message": "Tournament not found",
+            "data": None
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    serializer = TournamentUpdateprizeSerializer(tournament, data=request.data, partial=True)
+
+    if serializer.is_valid():
+        serializer.save()
+        return Response({
+            "success": True,
+            "message": "Tournament updated successfully",
+            "data": serializer.data
+        }, status=status.HTTP_200_OK)
+
+    return Response({
+        "success": False,
+        "message": "Validation failed",
+        "data": serializer.errors
+    }, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+
+
 class TopPlayersView(APIView):
     def get(self, request):
         # Fetching top 10 players with win and loss counts
@@ -1083,6 +1119,13 @@ def set_verified_winner_all(request):
 #                 'success': False,
 #                 'message': str(e)
 #             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+
+
+
 db = firestore.client()
 class FixtureViewSet(viewsets.ModelViewSet):
     queryset = Fixture.objects.all()
@@ -1318,6 +1361,254 @@ class FixtureViewSet(viewsets.ModelViewSet):
             print(f"Creating Firestore record for fixture: {match_data}")
 
             tournament_ref = db.collection(tournament_name).add(match_data)
+
+
+
+
+
+
+# Firestore client
+db = firestore.client()
+
+class SwissFixtureViewSet(viewsets.ModelViewSet):
+    queryset = SwissFixture.objects.all()
+    serializer_class = SwissFixtureSerializer
+
+    @action(detail=True, methods=['post'], url_path='manage_swissfixtures')
+    def manage_fixtures(self, request, pk=None):
+        """
+        API to create fixtures for round 1 or advance to the next round based on existing fixtures.
+        Only participants who have arrived_at_venue=True will be included in the fixtures.
+        """
+        tournament_id = pk  # Get the tournament ID from the URL
+
+        try:
+            tournament = Tournament.objects.get(id=tournament_id)
+            # Fetch fixtures for the tournament, ordered by round number
+            existing_fixtures = SwissFixture.objects.filter(tournament=tournament).order_by('-round_number')
+
+            if not existing_fixtures:
+                # Create Round 1 fixtures if no fixtures exist
+                participants = list(Participant.objects.filter(tournament=tournament, arrived_at_venue=True))
+                num_participants = len(participants)
+
+                if num_participants < 2:
+                    return Response({
+                        'success': False,
+                        'message': 'At least two participants who have arrived at the venue are required to create fixtures.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+                fixtures = []
+                match_date = timezone.make_aware(datetime.combine(tournament.event_date, datetime.min.time()))
+
+                # Handle bye if participants are odd
+                if num_participants % 2 != 0:
+                    bye_participant = random.choice(participants)
+                    participants.remove(bye_participant)
+                    fixture = SwissFixture.objects.create(
+                        tournament=tournament,
+                        participant1=bye_participant,
+                        participant2=None,
+                        round_number=1,
+                        match_date=match_date,
+                        nominated_winner=bye_participant,
+                        verified_winner=bye_participant,
+                        is_verified=True
+                    )
+                    fixtures.append(fixture)
+                    self.create_firestore_record(fixture)  # Added Firestore record creation
+
+                # Create match fixtures for Round 1
+                for i in range(0, len(participants), 2):
+                    if i + 1 < len(participants):
+                        fixture = SwissFixture.objects.create(
+                            tournament=tournament,
+                            participant1=participants[i],
+                            participant2=participants[i + 1],
+                            round_number=1,
+                            match_date=match_date
+                        )
+                        fixtures.append(fixture)
+                        self.create_firestore_record(fixture)  # Added Firestore record creation
+
+                serializer = SwissFixtureSerializer(fixtures, many=True)
+                return Response({'success': True, 'fixtures': serializer.data}, status=status.HTTP_201_CREATED)
+
+            # Determine the last completed round
+            last_round = existing_fixtures.first().round_number
+            last_round_fixtures = SwissFixture.objects.filter(
+                tournament=tournament,
+                round_number=last_round,
+                is_verified=True
+            )
+
+            # Ensure all matches in the last round are verified
+            if len(last_round_fixtures) != SwissFixture.objects.filter(tournament=tournament, round_number=last_round).count():
+                return Response({
+                    'success': False,
+                    'message': 'Not all matches in the current round are verified. Complete the round first.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Collect winners from the last round
+            winners = [fixture.verified_winner for fixture in last_round_fixtures if fixture.verified_winner and fixture.verified_winner.arrived_at_venue]
+
+            if len(winners) == 1:
+                # If only one winner remains, they win the tournament
+                winner = winners[0]
+                winner_data = ParticipantSerializerforfixture(winner).data
+                tournament.is_active = False
+                tournament.save()
+                return Response({
+                    'success': True,
+                    'message': f'Tournament is complete. {winner.user.username} is the winner!',
+                    'winner_data': winner_data
+                }, status=status.HTTP_200_OK)
+
+            if len(winners) < 2:
+                # No further rounds are necessary if fewer than two winners
+                return Response({
+                    'success': False,
+                    'message': 'No further rounds are needed.'
+                }, status=status.HTTP_200_OK)
+
+            # Set match date and advance to the next round
+            match_date = timezone.make_aware(datetime.combine(tournament.event_date, datetime.min.time()))
+            new_round = last_round + 1
+            fixtures = []
+            played_pairs = self.get_played_pairs(tournament)
+
+            # Handle odd number of winners by giving a bye
+            if len(winners) % 2 != 0:
+                bye_participant = random.choice(winners)
+                winners.remove(bye_participant)
+                fixture = SwissFixture.objects.create(
+                    tournament=tournament,
+                    participant1=bye_participant,
+                    participant2=None,
+                    round_number=new_round,
+                    match_date=match_date,
+                    nominated_winner=bye_participant,
+                    verified_winner=bye_participant,
+                    is_verified=True
+                )
+                fixtures.append(fixture)
+                self.create_firestore_record(fixture)  # Added Firestore record creation
+
+            # Create fixtures for the new round, ensuring no repeated matchups
+            for i in range(0, len(winners), 2):
+                if i + 1 < len(winners):
+                    participant1 = winners[i]
+                    participant2 = winners[i + 1]
+
+                    # Check if they have already faced each other in a previous round
+                    while (participant1, participant2) in played_pairs or (participant2, participant1) in played_pairs:
+                        # If they have faced each other, swap the second participant
+                        if i + 2 < len(winners):
+                            participant2 = winners[i + 2]
+                        else:
+                            break  # No more participants to swap with, exit loop
+
+                    # Add the new fixture
+                    fixture = SwissFixture.objects.create(
+                        tournament=tournament,
+                        participant1=participant1,
+                        participant2=participant2,
+                        round_number=new_round,
+                        match_date=match_date
+                    )
+                    fixtures.append(fixture)
+                    self.create_firestore_record(fixture)  # Added Firestore record creation
+
+            serializer = SwissFixtureSerializer(fixtures, many=True)
+            return Response({'success': True, 'fixtures': serializer.data}, status=status.HTTP_201_CREATED)
+
+        except Tournament.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Tournament not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def create_firestore_record(self, fixture):
+        """
+        Create a Firestore document in the "tournaments" collection for the given fixture.
+        """
+        tournament_name = fixture.tournament.tournament_name
+        round_number = fixture.round_number
+
+        # Prepare participant1 data
+        participant1_data = self.prepare_participant_data(fixture.participant1) if fixture.participant1 else None
+        # Prepare participant2 data
+        participant2_data = self.prepare_participant_data(fixture.participant2) if fixture.participant2 else None
+
+        # Create the match data dictionary
+        match_data = {
+            "id": fixture.id,
+            "tournament": fixture.tournament.id,
+            "participant1": participant1_data,
+            "participant2": participant2_data,
+            "round_number": round_number,
+            "match_date": fixture.match_date.isoformat(),
+            "nominated_winner": fixture.nominated_winner.id if fixture.nominated_winner else None,
+            "verified_winner": fixture.verified_winner.id if fixture.verified_winner else None,
+            "is_verified": fixture.is_verified,
+            "start_time": fixture.start_time if hasattr(fixture, 'start_time') else None,  # Ensure `start_time` exists
+            "is_tournament_completed": fixture.is_tournament_completed
+        }
+
+        print(f"Creating Firestore record for fixture: {match_data}")
+
+        tournament_ref = db.collection(tournament_name).add(match_data)
+
+    def prepare_participant_data(self, participant):
+        """
+        Helper method to prepare participant data for Firestore.
+        """
+        return {
+            "id": participant.id if participant else None,
+            "user": {
+                "contact": participant.user.contact if participant else None,
+                "id": participant.user.id if participant else None,
+                "email": participant.user.email if participant else None,
+                "username": participant.user.username if participant else None,
+                "user_type": participant.user.user_type if participant else None,
+                "is_active": participant.user.is_active if participant else None,
+                "is_admin": participant.user.is_admin if participant else None,
+                "created_at": participant.user.created_at.isoformat() if participant else None,
+                "updated_at": participant.user.updated_at.isoformat() if participant else None,
+                "image": participant.user.image.url if participant and participant.user.image else None,
+                "is_registered": participant.user.is_registered if participant else None,
+                "is_deleted": participant.user.is_deleted if participant else None,
+                "full_name": participant.user.full_name if participant else None,
+                "address": participant.user.address if participant else None,
+                "longitude": participant.user.longitude if participant else None,
+                "latitude": participant.user.latitude if participant else None,
+            },
+            "tournament": participant.tournament.id if participant else None,
+            "tournament_name": participant.tournament.tournament_name if participant else None,
+            "deck_name": participant.deck.name if participant else None,
+            "registration_date": participant.registration_date.isoformat() if participant else None,
+            "payment_status": participant.payment_status if participant else None,
+            "total_score": participant.total_score if participant else None,
+            "is_ready": participant.is_ready if participant else None
+        }
+
+    def get_played_pairs(self, tournament):
+        """
+        Returns a list of participant pairs who have faced each other in previous rounds.
+        """
+        played_pairs = []
+        fixtures = SwissFixture.objects.filter(tournament=tournament)
+        for fixture in fixtures:
+            if fixture.participant1 and fixture.participant2:
+                # Add pairs to the played pairs list (ensure both orders are accounted for)
+                played_pairs.append((fixture.participant1, fixture.participant2))
+                played_pairs.append((fixture.participant2, fixture.participant1))
+        return played_pairs
 
 
 # class FixtureViewSet(viewsets.ModelViewSet):

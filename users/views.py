@@ -18,11 +18,157 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.mail import send_mail
 from django.utils.crypto import get_random_string
-from .serializers import UserSerializer,SocialRegistrationSerializer, UserLoginSerializer, UserProfileSerializer,PasswordResetSerializer
+from .serializers import UserSerializerfordeck,UserSerializer,SocialRegistrationSerializer, UserLoginSerializer, UserProfileSerializer,PasswordResetSerializer
 from django.contrib.auth.hashers import make_password
 import random
 from rest_framework.exceptions import ValidationError
 import string
+# views.py
+from django.db import transaction
+from django.core.mail import send_mail
+from django.conf import settings
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+
+# Import your models (adjust the import paths as needed)
+from .models import User
+from Tournaments.models import  Deck, Participant, Tournament, Game
+import requests
+
+import requests
+
+
+
+from rest_framework import serializers, viewsets, status
+from rest_framework.response import Response
+from rest_framework.decorators import action
+
+class CreateUserDeckParticipantAPIView(APIView):
+    def post(self, request, *args, **kwargs):
+        # Get user data from request
+        user_data = request.data.get('user')
+        if not user_data:
+            return Response({"error": "User data is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Step 1: Register the user
+        registration_url = 'http://127.0.0.1:8000//api/user/api/deck_user/'
+        headers = {'Content-Type': 'application/json'}
+        response = requests.post(registration_url, json=user_data, headers=headers)
+
+        # Check if the registration was successful
+        if response.status_code != 201:
+            return Response({"error": f"User registration failed. {response.text}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # If registration is successful, get user data
+        print("++++++++++++++++++++++++++++",response.json())
+        # user_data_response = response.json()
+        response_data = response.json()  # This is the parsed JSON response
+        email = response_data.get('user', {}).get('email')
+        # email = user_data_response.get("email")
+        
+        # Debugging: Print email to ensure it's present
+        print(f"Registered email: {email}")
+
+        # Check if user exists by email, or retrieve by email
+        if email is None:
+            return Response({"error": "Email not found in response."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            # If not found by email, return an error
+            return Response({"error": f"User with email {email} not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Step 2: Create the deck
+        deck_data = request.data.get('deck')
+        if not deck_data:
+            return Response({"error": "Deck data is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        game_id = deck_data.get('game')
+        if not game_id:
+            return Response({"error": "Deck data must include a game id."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            game = Game.objects.get(id=game_id)
+        except Game.DoesNotExist:
+            return Response({"error": f"Game with id {game_id} does not exist."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create deck
+        deck_image = request.FILES.get('image') if 'image' in request.FILES else deck_data.get('image')
+        deck = Deck.objects.create(user=user, game=game, name=deck_data.get('name'), description=deck_data.get('description', ''), image=deck_image)
+
+        # Step 3: Create the participant record
+        tournament_data = request.data.get('tournament')
+        if not tournament_data or not tournament_data.get('id'):
+            return Response({"error": "Tournament data with an 'id' field is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        tournament_id = tournament_data.get('id')
+        try:
+            tournament = Tournament.objects.get(id=tournament_id)
+        except Tournament.DoesNotExist:
+            return Response({"error": f"Tournament with id {tournament_id} does not exist."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create participant
+        participant = Participant.objects.create(user=user, tournament=tournament, deck=deck,payment_status="paid")
+
+        return Response({
+            "message": "User, deck, and participant created successfully.",
+            "deck": {
+                "id": deck.id,
+                "name": deck.name,
+                "description": deck.description,
+                "image": deck.image.url if deck.image else None
+            },
+            "participant": {
+                "id": participant.id,
+                "user": participant.user.email,
+                "tournament": participant.tournament.tournament_name,
+                "deck": participant.deck.name
+            }
+        }, status=status.HTTP_201_CREATED)
+@api_view(['POST'])
+def register_user_deck(request):
+    serializer = UserSerializerfordeck(data=request.data)
+    
+    if serializer.is_valid():
+        # Save the user and get the raw password
+        user = serializer.save()
+        raw_password = request.data.get('password')
+        # Get the raw password from the request data
+        # raw_password = request.data.get('user', {}).get('password')
+        print("=============",raw_password)
+        # Save the raw password temporarily to attach it to the response
+        user.raw_password = raw_password  # Store it temporarily on the user instance
+        print("=============",user.raw_password)
+        # Get the newly created user instance
+        usernew = User.objects.get(email=user.email)
+        print("=============",raw_password)
+        subject = 'Your Account Password'
+        message = f'Hello {usernew.full_name},\n\nYour account has been created successfully. Here is your password: {raw_password}'
+        from_email = "muhammadobaidullah1122@gmail.com"
+        to_email = usernew.email
+
+        # Send email
+        send_mail(subject, message, from_email, [to_email])
+
+
+
+
+        
+
+        # Serialize the user data
+        user_data = UserSerializerfordeck(usernew).data
+        user_data["password"] = raw_password  # Manually add the raw password to the response
+        
+        return Response({
+            "message": "User created successfully",
+            "user": user_data
+        }, status=status.HTTP_201_CREATED)
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 # class UserDetailViewnew(APIView):
 #     # Specify that the view should use 'custom_id' for lookups
 #     lookup_field = 'custom_id'

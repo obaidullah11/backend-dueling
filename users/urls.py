@@ -6,7 +6,7 @@ urlpatterns = [
     path('register/', UserRegistrationView.as_view(), name='register'),
     path('login/', UserLoginView.as_view(), name='login'),
     path('admin/login/', UseradminLoginView.as_view(), name='login'),
-    path('api/createnewuser/', CreateUserDeckParticipantAPIView.as_view(), name='create-user-deck-participant'),
+    path('api/createnewuser/<int:user_id>/', CreateUserDeckParticipantAPIView.as_view(), name='create-user-deck-participant'),
     path('api/deck_user/', register_user_deck, name='register_user'),
 
     path('me/', UserProfileView.as_view(), name='profile'),

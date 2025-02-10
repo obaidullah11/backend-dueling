@@ -44,114 +44,59 @@ from rest_framework import serializers, viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 
-# class CreateUserDeckParticipantAPIView(APIView):
-#     def post(self, request, *args, **kwargs):
-#         # Get user_id from URL parameters
-#         user_id = kwargs.get('user_id')
-#         if not user_id:
-#             return Response({"error": "User ID is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Step 1: Retrieve the user by user_id
-#         try:
-#             user = User.objects.get(id=user_id)
-#         except User.DoesNotExist:
-#             return Response({"error": f"User with ID {user_id} not found."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Step 2: Create the deck
-#         deck_data = request.data.get('deck')
-#         if not deck_data:
-#             return Response({"error": "Deck data is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         game_id = deck_data.get('game')
-#         if not game_id:
-#             return Response({"error": "Deck data must include a game id."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         try:
-#             game = Game.objects.get(id=game_id)
-#         except Game.DoesNotExist:
-#             return Response({"error": f"Game with id {game_id} does not exist."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Create deck
-#         deck_image = request.FILES.get('image') if 'image' in request.FILES else deck_data.get('image')
-#         deck = Deck.objects.create(user=user, game=game, name=deck_data.get('name'), description=deck_data.get('description', ''), image=deck_image)
-
-#         # Step 3: Create the participant record
-#         tournament_data = request.data.get('tournament')
-#         if not tournament_data or not tournament_data.get('id'):
-#             return Response({"error": "Tournament data with an 'id' field is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         tournament_id = tournament_data.get('id')
-#         try:
-#             tournament = Tournament.objects.get(id=tournament_id)
-#         except Tournament.DoesNotExist:
-#             return Response({"error": f"Tournament with id {tournament_id} does not exist."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Create participant
-#         participant = Participant.objects.create(user=user, tournament=tournament, deck=deck, payment_status="paid")
-
-#         # Step 4: Send an email to the user
-#         subject = "Deck and Participation Confirmation"
-#         message = f"Hello {user.username},\n\nYour deck '{deck.name}' has been successfully created and you are now registered for the tournament '{tournament.tournament_name}'."
-#         from_email = settings.DEFAULT_FROM_EMAIL
-#         recipient_list = [user.email]
-
-#         try:
-#             send_mail(subject, message, from_email, recipient_list)
-#         except Exception as e:
-#             return Response({"error": f"Failed to send email: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-#         return Response({
-#             "message": "User, deck, and participant created successfully, and email sent.",
-#             "deck": {
-#                 "id": deck.id,
-#                 "name": deck.name,
-#                 "description": deck.description,
-#                 "image": deck.image.url if deck.image else None
-#             },
-#             "participant": {
-#                 "id": participant.id,
-#                 "user": participant.user.email,
-#                 "tournament": participant.tournament.tournament_name,
-#                 "deck": participant.deck.name
-#             }
-#         }, status=status.HTTP_201_CREATED)
 class CreateUserDeckParticipantAPIView(APIView):
     def post(self, request, *args, **kwargs):
-        # Get user_id from URL parameters
-        user_id = kwargs.get('user_id')
-        if not user_id:
-            return Response({"error": "User ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+        # Get user data from request
+        user_data = request.data.get('user')
+        if not user_data:
+            return Response({"error": "User data is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Step 1: Retrieve the user by user_id
+        # Step 1: Register the user
+        registration_url = 'http://127.0.0.1:8000//api/user/api/deck_user/'
+        headers = {'Content-Type': 'application/json'}
+        response = requests.post(registration_url, json=user_data, headers=headers)
+
+        # Check if the registration was successful
+        if response.status_code != 201:
+            return Response({"error": f"User registration failed. {response.text}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # If registration is successful, get user data
+        print("++++++++++++++++++++++++++++",response.json())
+        # user_data_response = response.json()
+        response_data = response.json()  # This is the parsed JSON response
+        email = response_data.get('user', {}).get('email')
+        # email = user_data_response.get("email")
+        
+        # Debugging: Print email to ensure it's present
+        print(f"Registered email: {email}")
+
+        # Check if user exists by email, or retrieve by email
+        if email is None:
+            return Response({"error": "Email not found in response."}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
-            user = User.objects.get(id=user_id)
+            user = User.objects.get(email=email)
         except User.DoesNotExist:
-            return Response({"error": f"User with ID {user_id} not found."}, status=status.HTTP_400_BAD_REQUEST)
+            # If not found by email, return an error
+            return Response({"error": f"User with email {email} not found."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Step 2: Create the deck
         deck_data = request.data.get('deck')
         if not deck_data:
             return Response({"error": "Deck data is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        game_name = deck_data.get('game')  # Get game name from request
-        if not game_name:
-            return Response({"error": "Deck data must include a game name."}, status=status.HTTP_400_BAD_REQUEST)
+        game_id = deck_data.get('game')
+        if not game_id:
+            return Response({"error": "Deck data must include a game id."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Retrieve game object by name and get its ID
         try:
-            game = Game.objects.get(name=game_name)
+            game = Game.objects.get(id=game_id)
         except Game.DoesNotExist:
-            return Response({"error": f"Game with name '{game_name}' does not exist."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": f"Game with id {game_id} does not exist."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Create deck
         deck_image = request.FILES.get('image') if 'image' in request.FILES else deck_data.get('image')
-        deck = Deck.objects.create(
-            user=user,
-            game=game,  # Assign the game object directly
-            name=deck_data.get('name'),
-            description=deck_data.get('description', ''),
-            image=deck_image
-        )
+        deck = Deck.objects.create(user=user, game=game, name=deck_data.get('name'), description=deck_data.get('description', ''), image=deck_image)
 
         # Step 3: Create the participant record
         tournament_data = request.data.get('tournament')
@@ -165,21 +110,10 @@ class CreateUserDeckParticipantAPIView(APIView):
             return Response({"error": f"Tournament with id {tournament_id} does not exist."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Create participant
-        participant = Participant.objects.create(user=user, tournament=tournament, deck=deck, payment_status="paid")
-
-        # Step 4: Send an email to the user
-        subject = "Deck and Participation Confirmation"
-        message = f"Hello {user.username},\n\nYour deck '{deck.name}' has been successfully created and you are now registered for the tournament '{tournament.tournament_name}'."
-        from_email = settings.DEFAULT_FROM_EMAIL
-        recipient_list = [user.email]
-
-        try:
-            send_mail(subject, message, from_email, recipient_list)
-        except Exception as e:
-            return Response({"error": f"Failed to send email: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        participant = Participant.objects.create(user=user, tournament=tournament, deck=deck,payment_status="paid")
 
         return Response({
-            "message": "User, deck, and participant created successfully, and email sent.",
+            "message": "User, deck, and participant created successfully.",
             "deck": {
                 "id": deck.id,
                 "name": deck.name,
@@ -193,11 +127,10 @@ class CreateUserDeckParticipantAPIView(APIView):
                 "deck": participant.deck.name
             }
         }, status=status.HTTP_201_CREATED)
-
 @api_view(['POST'])
 def register_user_deck(request):
     serializer = UserSerializerfordeck(data=request.data)
-
+    
     if serializer.is_valid():
         # Save the user and get the raw password
         user = serializer.save()
@@ -222,12 +155,12 @@ def register_user_deck(request):
 
 
 
-
+        
 
         # Serialize the user data
         user_data = UserSerializerfordeck(usernew).data
         user_data["password"] = raw_password  # Manually add the raw password to the response
-
+        
         return Response({
             "message": "User created successfully",
             "user": user_data

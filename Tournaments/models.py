@@ -221,6 +221,8 @@ class SwissFixture(models.Model):
     participant1_score = models.IntegerField(default=0)  # Score for Swiss rankings
     participant2_score = models.IntegerField(default=0)  # Score for Swiss rankings
 
+    draw = models.BooleanField(default=False)  # Added draw field
+
     def __str__(self):
         participant1_username = self.participant1.user.username if self.participant1 and hasattr(self.participant1, 'user') else "No Participant"
 

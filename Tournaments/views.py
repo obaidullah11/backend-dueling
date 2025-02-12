@@ -764,6 +764,95 @@ def set_nominated_winner(request, fixture_id):
     except Participant.DoesNotExist:
         return Response({"success": False, "message": "Invalid winner_id", "data": {}}, status=status.HTTP_404_NOT_FOUND)
 
+
+
+
+
+@api_view(['POST'])
+def set_nominated_swisswinner(request, fixture_id):
+    try:
+        # Retrieve the fixture based on the ID
+        fixture = SwissFixture.objects.get(id=fixture_id)
+    except SwissFixture.DoesNotExist:
+        return Response({"success": False, "message": "Fixture not found", "data": {}}, status=status.HTTP_404_NOT_FOUND)
+
+    # Get winner_id or draw flag from the request data
+    winner_id = request.data.get("winner_id")
+    draw = request.data.get("draw", False)  # Default to False if not provided
+
+    if draw:
+        # If it's a draw, set the is_draw field to True and reset the winner
+        fixture.draw = True
+        fixture.nominated_winner = None  # No winner in a draw
+    elif winner_id:
+        try:
+            # If there is a winner, set the nominated winner
+            winner = Participant.objects.get(id=winner_id)
+            fixture.nominated_winner = winner
+            fixture.draw = False  # Set is_draw to False if there is a winner
+        except Participant.DoesNotExist:
+            return Response({"success": False, "message": "Invalid winner_id", "data": {}}, status=status.HTTP_404_NOT_FOUND)
+    else:
+        return Response({"success": False, "message": "Either winner_id or is_draw flag must be provided", "data": {}}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Save the fixture with the updated winner or draw status
+    fixture.save()
+
+    # Serialize the fixture data to send back
+    data = SwissFixtureSerializer(fixture).data
+    return Response({"success": True, "message": "Fixture result updated successfully", "data": data}, status=status.HTTP_200_OK)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # @api_view(['POST'])
 # def set_verified_winner(request, fixture_id):
 #     try:
@@ -873,6 +962,147 @@ def set_verified_winner(request, fixture_id):
     except Participant.DoesNotExist:
         print(f"Participant with id {winner_id} does not exist.")
         return Response({"success": False, "message": "Invalid winner_id", "data": {}}, status=status.HTTP_404_NOT_FOUND)
+
+
+
+
+
+@api_view(['POST'])
+def set_verified_swisswinner_all(request):
+    fixture_winners = request.data.get("fixture_winners")
+
+    print(f"Received fixture_winners: {fixture_winners}")
+
+    if not fixture_winners or not isinstance(fixture_winners, list):
+        return Response({"success": False, "message": "fixture_winners must be provided as a list of objects", "data": {}},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    updated_fixtures_data = []
+    not_found_fixtures = []
+    invalid_winners = []
+
+    for item in fixture_winners:
+        fixture_id = item.get("fixture_id")
+        winner_id = item.get("winner_id")
+        draw = item.get("draw", False)  # Added draw key to determine if it's a draw
+
+        print(f"Processing fixture ID: {fixture_id}, winner ID: {winner_id}, Draw: {draw}")
+
+        if fixture_id is None or (not draw and winner_id is None):
+            return Response({"success": False, "message": "Both fixture_id and winner_id must be provided, or if draw is true, winner_id should be omitted.", "data": {}},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Retrieve the fixture
+            fixture = SwissFixture.objects.get(id=fixture_id)
+            print(f"Fixture found: {fixture}, Participant1: {fixture.participant1}, Participant2: {fixture.participant2}")
+
+            if draw:
+                # Handle Draw: Both participants get 1 point, no verified winner
+                fixture.draw = True
+                fixture.verified_winner = None
+                fixture.is_verified = True
+                fixture.save()
+
+                # Update MatchScores for both participants
+                for participant in [fixture.participant1, fixture.participant2]:
+                    match_score, created = MatchScore.objects.get_or_create(
+                        participant=participant,
+                        tournament=fixture.tournament,
+                        round=fixture.round_number  # Add round to the match score
+                    )
+                    match_score.score += 1  # Both participants get 1 point
+                    match_score.win = False
+                    match_score.lose = False
+                    match_score.save()
+
+                print(f"Draw fixture updated: {fixture}")
+            else:
+                # Handle Winner Scenario
+                winner = Participant.objects.get(id=winner_id)
+                print(f"Winner found: {winner}")
+
+                # Determine the loser based on fixture participants
+                if fixture.participant1 == winner:
+                    loser = fixture.participant2
+                    print(f"Loser identified as: {loser} (fixture.participant2)")
+                elif fixture.participant2 == winner:
+                    loser = fixture.participant1
+                    print(f"Loser identified as: {loser} (fixture.participant1)")
+                else:
+                    print(f"Error: Winner ID {winner_id} is not part of fixture {fixture_id}")
+                    return Response({"success": False, "message": f"Winner ID {winner_id} is not part of fixture {fixture_id}."},
+                                    status=status.HTTP_400_BAD_REQUEST)
+
+                # Get the round number from the fixture
+                round_number = fixture.round_number
+                print(f"Round number: {round_number}")
+
+                # Update fixture to set the verified winner
+                fixture.verified_winner = winner
+                fixture.is_verified = True
+                fixture.is_draw = False  # Ensure it's not marked as a draw
+                fixture.save()
+                print(f"Fixture updated with verified winner: {fixture.verified_winner}")
+
+                # Update or create MatchScore for the winner
+                winner_score, created = MatchScore.objects.get_or_create(
+                    participant=winner,
+                    tournament=fixture.tournament,
+                    round=round_number  # Add round to the match score
+                )
+                winner_score.score += 3  # Add 3 points for winner
+                winner_score.win = True
+                winner_score.lose = False
+                winner_score.save()
+                print(f"Winner score updated: {winner_score}")
+
+                # Update or create MatchScore for the loser
+                if loser:
+                    loser_score, created = MatchScore.objects.get_or_create(
+                        participant=loser,
+                        tournament=fixture.tournament,
+                        round=round_number  # Add round to the match score
+                    )
+                    loser_score.score = 0  # Loser gets 0 points
+                    loser_score.win = False
+                    loser_score.lose = True
+                    loser_score.save()
+                    print(f"Loser score updated: {loser_score}")
+                else:
+                    print("No loser found to update score.")
+
+            # Add fixture data to the response
+            updated_fixtures_data.append(SwissFixtureSerializer(fixture).data)
+
+        except SwissFixture.DoesNotExist:
+            not_found_fixtures.append(fixture_id)
+            print(f"Fixture ID {fixture_id} not found")
+        except Participant.DoesNotExist:
+            invalid_winners.append(winner_id)
+            print(f"Participant ID {winner_id} not found")
+
+    # Construct response message
+    success_message = "Verified winners set successfully for the following fixtures:"
+    if updated_fixtures_data:
+        success_message += f" {', '.join(str(f['id']) for f in updated_fixtures_data)}."
+    if not_found_fixtures:
+        success_message += f" The following fixture IDs were not found: {', '.join(map(str, not_found_fixtures))}."
+    if invalid_winners:
+        success_message += f" The following winner IDs were invalid: {', '.join(map(str, invalid_winners))}."
+
+    print(f"Response message: {success_message}")
+
+    return Response({
+        "success": True,
+        "message": success_message,
+        "data": updated_fixtures_data
+    }, status=status.HTTP_200_OK)
+
+
+
+
+
 
 @api_view(['POST'])
 def set_verified_winner_all(request):
@@ -1367,120 +1597,53 @@ class FixtureViewSet(viewsets.ModelViewSet):
 
 
 
+
+
+
 # Firestore client
 db = firestore.client()
-
 class SwissFixtureViewSet(viewsets.ModelViewSet):
     queryset = SwissFixture.objects.all()
     serializer_class = SwissFixtureSerializer
 
     @action(detail=True, methods=['post'], url_path='manage_swissfixtures')
+    
     def manage_fixtures(self, request, pk=None):
         """
         API to create fixtures for round 1 or advance to the next round based on existing fixtures.
-        Only participants who have arrived_at_venue=True will be included in the fixtures.
         """
         tournament_id = pk  # Get the tournament ID from the URL
 
         try:
             tournament = Tournament.objects.get(id=tournament_id)
-            # Fetch fixtures for the tournament, ordered by round number
-            existing_fixtures = SwissFixture.objects.filter(tournament=tournament).order_by('-round_number')
+            participants = self.get_tournament_participants(tournament)  # Fetch participants
 
-            if not existing_fixtures:
-                # Create Round 1 fixtures if no fixtures exist
-                participants = list(Participant.objects.filter(tournament=tournament, arrived_at_venue=True))
-                num_participants = len(participants)
-
-                if num_participants < 2:
-                    return Response({
-                        'success': False,
-                        'message': 'At least two participants who have arrived at the venue are required to create fixtures.'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-
-                fixtures = []
-                match_date = timezone.make_aware(datetime.combine(tournament.event_date, datetime.min.time()))
-
-                # Handle bye if participants are odd
-                if num_participants % 2 != 0:
-                    bye_participant = random.choice(participants)
-                    participants.remove(bye_participant)
-                    fixture = SwissFixture.objects.create(
-                        tournament=tournament,
-                        participant1=bye_participant,
-                        participant2=None,
-                        round_number=1,
-                        match_date=match_date,
-                        nominated_winner=bye_participant,
-                        verified_winner=bye_participant,
-                        is_verified=True
-                    )
-                    fixtures.append(fixture)
-                    self.create_firestore_record(fixture)  # Added Firestore record creation
-
-                # Create match fixtures for Round 1
-                for i in range(0, len(participants), 2):
-                    if i + 1 < len(participants):
-                        fixture = SwissFixture.objects.create(
-                            tournament=tournament,
-                            participant1=participants[i],
-                            participant2=participants[i + 1],
-                            round_number=1,
-                            match_date=match_date
-                        )
-                        fixtures.append(fixture)
-                        self.create_firestore_record(fixture)  # Added Firestore record creation
-
-                serializer = SwissFixtureSerializer(fixtures, many=True)
-                return Response({'success': True, 'fixtures': serializer.data}, status=status.HTTP_201_CREATED)
-
-            # Determine the last completed round
-            last_round = existing_fixtures.first().round_number
-            last_round_fixtures = SwissFixture.objects.filter(
-                tournament=tournament,
-                round_number=last_round,
-                is_verified=True
-            )
-
-            # Ensure all matches in the last round are verified
-            if len(last_round_fixtures) != SwissFixture.objects.filter(tournament=tournament, round_number=last_round).count():
+            # Fetch the maximum round number from existing fixtures and add 1 to get the next round
+            last_round = SwissFixture.objects.filter(tournament=tournament).aggregate(models.Max('round_number'))['round_number__max'] or 0
+            new_round = last_round + 1  # Next round number
+            match_date = timezone.make_aware(datetime.combine(tournament.event_date, datetime.min.time()))
+            # Check if there are enough participants
+            if len(participants) < 2:
                 return Response({
                     'success': False,
-                    'message': 'Not all matches in the current round are verified. Complete the round first.'
+                    'message': 'Not enough participants to create new fixtures.'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            # Collect winners from the last round
-            winners = [fixture.verified_winner for fixture in last_round_fixtures if fixture.verified_winner and fixture.verified_winner.arrived_at_venue]
-
-            if len(winners) == 1:
-                # If only one winner remains, they win the tournament
-                winner = winners[0]
-                winner_data = ParticipantSerializerforfixture(winner).data
-                tournament.is_active = False
-                tournament.save()
-                return Response({
-                    'success': True,
-                    'message': f'Tournament is complete. {winner.user.username} is the winner!',
-                    'winner_data': winner_data
-                }, status=status.HTTP_200_OK)
-
-            if len(winners) < 2:
-                # No further rounds are necessary if fewer than two winners
+            # Verify that all fixtures from the previous round are verified
+            previous_round_fixtures = SwissFixture.objects.filter(tournament=tournament, round_number=last_round)
+            if previous_round_fixtures.filter(is_verified=False).exists():
                 return Response({
                     'success': False,
-                    'message': 'No further rounds are needed.'
-                }, status=status.HTTP_200_OK)
+                    'message': 'All fixtures from the previous round must be verified before creating the next round.'
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-            # Set match date and advance to the next round
-            match_date = timezone.make_aware(datetime.combine(tournament.event_date, datetime.min.time()))
-            new_round = last_round + 1
             fixtures = []
             played_pairs = self.get_played_pairs(tournament)
 
-            # Handle odd number of winners by giving a bye
-            if len(winners) % 2 != 0:
-                bye_participant = random.choice(winners)
-                winners.remove(bye_participant)
+            # Handle the bye if participants are odd
+            if len(participants) % 2 != 0:
+                bye_participant = random.choice(participants)
+                participants.remove(bye_participant)
                 fixture = SwissFixture.objects.create(
                     tournament=tournament,
                     participant1=bye_participant,
@@ -1492,23 +1655,20 @@ class SwissFixtureViewSet(viewsets.ModelViewSet):
                     is_verified=True
                 )
                 fixtures.append(fixture)
-                self.create_firestore_record(fixture)  # Added Firestore record creation
+                self.create_firestore_record(fixture)
 
-            # Create fixtures for the new round, ensuring no repeated matchups
-            for i in range(0, len(winners), 2):
-                if i + 1 < len(winners):
-                    participant1 = winners[i]
-                    participant2 = winners[i + 1]
+            # Create fixtures for the remaining participants
+            for i in range(0, len(participants), 2):
+                if i + 1 < len(participants):
+                    participant1 = participants[i]
+                    participant2 = participants[i + 1]
 
-                    # Check if they have already faced each other in a previous round
                     while (participant1, participant2) in played_pairs or (participant2, participant1) in played_pairs:
-                        # If they have faced each other, swap the second participant
-                        if i + 2 < len(winners):
-                            participant2 = winners[i + 2]
+                        if i + 2 < len(participants):
+                            participant2 = participants[i + 2]
                         else:
-                            break  # No more participants to swap with, exit loop
+                            break
 
-                    # Add the new fixture
                     fixture = SwissFixture.objects.create(
                         tournament=tournament,
                         participant1=participant1,
@@ -1517,7 +1677,7 @@ class SwissFixtureViewSet(viewsets.ModelViewSet):
                         match_date=match_date
                     )
                     fixtures.append(fixture)
-                    self.create_firestore_record(fixture)  # Added Firestore record creation
+                    self.create_firestore_record(fixture)
 
             serializer = SwissFixtureSerializer(fixtures, many=True)
             return Response({'success': True, 'fixtures': serializer.data}, status=status.HTTP_201_CREATED)
@@ -1533,6 +1693,11 @@ class SwissFixtureViewSet(viewsets.ModelViewSet):
                 'message': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    def get_tournament_participants(self, tournament):
+        """
+        Returns the list of participants who have arrived at the venue for a given tournament.
+        """
+        return Participant.objects.filter(tournament=tournament, arrived_at_venue=True,is_disqualified=False)
     def create_firestore_record(self, fixture):
         """
         Create a Firestore document in the "tournaments" collection for the given fixture.
@@ -1556,6 +1721,7 @@ class SwissFixtureViewSet(viewsets.ModelViewSet):
             "nominated_winner": fixture.nominated_winner.id if fixture.nominated_winner else None,
             "verified_winner": fixture.verified_winner.id if fixture.verified_winner else None,
             "is_verified": fixture.is_verified,
+            "draw": fixture.draw,
             "start_time": fixture.start_time if hasattr(fixture, 'start_time') else None,  # Ensure `start_time` exists
             "is_tournament_completed": fixture.is_tournament_completed
         }
@@ -1597,6 +1763,7 @@ class SwissFixtureViewSet(viewsets.ModelViewSet):
             "is_ready": participant.is_ready if participant else None
         }
 
+
     def get_played_pairs(self, tournament):
         """
         Returns a list of participant pairs who have faced each other in previous rounds.
@@ -1611,7 +1778,6 @@ class SwissFixtureViewSet(viewsets.ModelViewSet):
         return played_pairs
 
 
-# class FixtureViewSet(viewsets.ModelViewSet):
 #     queryset = Fixture.objects.all()
 #     serializer_class = FixtureSerializer
 

@@ -565,6 +565,35 @@ class FixtureSerializer(serializers.ModelSerializer):
     class Meta:
         model = Fixture
         fields = ['id', 'tournament', 'participant1', 'participant2', 'round_number', 'match_date', 'nominated_winner', 'verified_winner', 'is_verified','start_time','is_tournament_completed']
+from datetime import datetime, date
+from django.utils import timezone
+
+
+class SwissFixtureSerializer(serializers.ModelSerializer):
+    participant1 = ParticipantSerializerforfixture()
+    participant2 = ParticipantSerializerforfixture(allow_null=True)  # Allow null for participant2
+    # Handle datetime properly
+
+    class Meta:
+        model = SwissFixture
+        fields = [
+            'id',
+            'tournament',
+            'participant1',
+            'participant2',
+            'round_number',
+            'nominated_winner',
+            'verified_winner',
+            'is_verified',
+            'start_time',
+            'is_tournament_completed',
+            'participant1_score',
+            'participant2_score',
+            'draw'
+        ]
+
+
+
 class FixtureSerializernew(serializers.ModelSerializer):
     participant1 = ParticipantSerializer()
     participant2 = ParticipantSerializer(allow_null=True)  # Allow null for participant2
@@ -643,7 +672,7 @@ class SwissFixtureSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'tournament', 'participant1', 'participant2', 'round_number', 'match_date',
             'start_time', 'nominated_winner', 'verified_winner', 'is_verified', 'is_tournament_completed',
-            'tournament_name', 'participant1_name', 'participant2_name', 'nominated_winner_name', 'verified_winner_name'
+            'tournament_name', 'participant1_name', 'participant2_name', 'nominated_winner_name', 'verified_winner_name','draw',
         ]
 
 

@@ -155,7 +155,7 @@ class StaffAdmin(admin.ModelAdmin):
 
 @admin.register(SwissFixture)
 class SwissFixtureAdmin(admin.ModelAdmin):
-    list_display = ('tournament', 'round_number', 'participant1', 'participant2', 'match_date', 'start_time', 'is_verified', 'is_tournament_completed')
+    list_display = ('id','tournament', 'round_number', 'participant1', 'participant2', 'match_date', 'start_time', 'is_verified', 'is_tournament_completed')
     list_filter = ('tournament', 'round_number', 'is_verified', 'is_tournament_completed')
     search_fields = ('tournament__tournament_name', 'participant1__user__username', 'participant2__user__username')
     ordering = ('tournament', 'round_number', 'match_date')

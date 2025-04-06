@@ -7,16 +7,20 @@ from .views import *
 
 urlpatterns = [
 
-
-   path('tournament_prize_update/<int:tournament_id>/', update_tournament_prizes, name='update-tournament-prizes'),
-
-
-
-
-
+    path('update-payment-status/', update_payment_status, name='update_payment_status'),
+    path('tcg/<str:game_name>/', TCGCardView.as_view(), name='tcg_cards'),
+    path('update_tournament_structure/<int:tournament_id>/', UpdateTournamentStructureView.as_view(), name='update_tournament_structure'),
+    path('tournament_prize_update/<int:tournament_id>/', update_tournament_prizes, name='update-tournament-prizes'),
+    path('adminfixturelistswiss/<int:tournament_id>/', admingetallswissTournamentFixturesView.as_view(), name='tournament-fixtures'),
 
 
 
+
+    path('match-scores/<int:tournament_id>/', MatchScoreListAPIView.as_view(), name='match-score-list'),
+
+
+
+    path('endtournament/<int:tournament_id>/', HighestScoreView.as_view(), name='highest_score'),
 
 
     path('adminstartmatch/<int:tournament_id>/', adminstartmatch.as_view(), name='update_fixtures_start_time'),
@@ -35,7 +39,7 @@ urlpatterns = [
     path('api/featured-tournaments/', FeaturedTournamentListView.as_view(), name='featured-tournaments'),
     path('tournaments_events/<int:game_id>/', TournamentByGameView.as_view(), name='tournaments_by_game'),
     path('api/participants/<int:user_id>/', UserParticipantsView.as_view(), name='user-participants'),
-    
+
     path('delete_banner/<int:banner_id>/', delete_banner_image, name='delete-banner'),
     path('banner-images/', list_banner_images, name='banner_image_list'),
     path('pokemon_cards/', PokemonCardsView.as_view(), name='pokemon-cards'),
@@ -43,7 +47,7 @@ urlpatterns = [
     path('add_decks/<int:deck_id>/', AddMultipleCardsView.as_view(), name='add-multiple-cards'),
     path('getuserdeck/<int:user_id>/game/<int:game_id>/', UserGameDecksView.as_view(), name='user_game_decks'),
     path('getuserdeckdata/<int:user_id>/game/<int:game_id>/', UserGameDecksViewnew.as_view(), name='user_game_decks'),
-  
+
     path('banner-images/<int:pk>/', banner_image_detail, name='banner_image_detail'),
     path('tournaments/draft/create/<int:user_id>/', TournamentViewSet.as_view({'post': 'save_draft'}), name='save_draft'),
     path('tournaments/active/', TournamentViewSet.as_view({'get': 'active'}), name='active_tournaments'),
@@ -57,15 +61,15 @@ urlpatterns = [
     path('tournaments/<int:pk>/eligible-participants/', TournamentViewSet.as_view({'get': 'eligible_participants'}), name='eligible-participants'),
     path('tournaments/<int:pk>/Tournament_participants/', TournamentViewSet.as_view({'get': 'Tournament_participants'}), name='Tournament_participants'),
     path('gettournaments/', TournamentViewSet.as_view({'get': 'all_tournaments'}), name='all-tournaments'),  # To get all tournaments
-    
-    
-    
-    
-    
+
+
+
+
+
     path('create_feature/<int:tournament_id>/', UpdateFeaturedTournamentView.as_view(), name='update-featured'),
-    
-    
-    
+
+
+
     path('myfixture/<int:tournament_id>/<int:user_id>/', UserTournamentFixturesView.as_view(), name='user-tournament-fixtures'),
     path('tournaments/<int:pk>/create_round_1_fixtures/', FixtureViewSet.as_view({'post': 'create_round_1_fixtures'}), name='create-round-1-fixtures'),
     # path('tournaments/<int:pk>/create_round_1_swiss_fixtures/', create_swiss_fixture({'post': 'create_round_1_fixtures'}), name='create-round-1-fixtures'),
@@ -73,34 +77,34 @@ urlpatterns = [
     path('user/register/<int:user_id>/', register_for_tournament, name='register-for-tournament'),
     path('adminfixturelist/<int:tournament_id>/', admingetallTournamentFixturesView.as_view(), name='tournament-fixtures'),
     path('set_nominated_winner/<int:fixture_id>/',set_nominated_winner, name='set_nominated_winner'),
-    
+
     path('set_nominated_swisswinner/<int:fixture_id>/',set_nominated_swisswinner, name='set_nominated_winner'),
-    
-    
+
+
     path('set_verified_winner/<int:fixture_id>/', set_verified_winner, name='set_verified_winner'),
     path('set_verified_winnerall/', set_verified_winner_all, name='set_verified_winner'),
     path('set_verified_swisswinnerall/', set_verified_swisswinner_all, name='set_verified_winner'),
-    
-    
-    
-    
-    
-    
-    
+
+
+
+
+
+
+
     path('fixtures/<int:pk>/create_fixtures/', FixtureViewSet.as_view({'post': 'manage_fixtures'}), name='manage-fixtures'),
     path('fixtures/<int:pk>/swiss_create_fixtures/',SwissFixtureViewSet.as_view({'post': 'manage_fixtures'}), name='manage-fixtures'),
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
+
+
+
+
+
+
+
+
+
+
+
     path('getrecent/<int:user_id>/', events_today, name='events_today'),
     path('admintoday/<int:user_id>/', TodayEventParticipantsView.as_view(), name='today_event_participants'),
     path('eliminate-participant/<int:fixture_id>/', eliminate_participant, name='eliminate_participant'),

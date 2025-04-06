@@ -38,25 +38,30 @@ class MyUserManager(BaseUserManager):
 
         return self.create_user(email, contact, username , password, **extra_fields)
 class CustomUserIDField(models.CharField):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('max_length', 6)  # Ensure max length is 6
+        super().__init__(*args, **kwargs)
+
     def pre_save(self, model_instance, add):
-        # Generate a 6-digit ID if it's a new instance
-        if add:
-            return get_random_string(length=6, allowed_chars='0123456789')
-        else:
-            return super().pre_save(model_instance, add)
+        if add:  # Only generate an ID for new instances
+            while True:
+                random_id = get_random_string(length=6, allowed_chars='1234567890123456789')  # Ensure first digit is not 0
+                if random_id[0] != '0':  # Double-check first digit
+                    return random_id
+        return super().pre_save(model_instance, add)
 # Create your models here.
 class User(AbstractUser):
     full_name = models.CharField(max_length=150, null=True, blank=True)
-    
+
     address = models.TextField(null=True, blank=True)
     id = CustomUserIDField(primary_key=True, max_length=6, editable=False)
-    
+
     USER_TYPE_CHOICES = (
         ('client', 'client'),
         ('admin', 'admin'),
         ('super_admin', 'Super Admin'),
     )
-    
+
     contact = models.CharField(max_length=255, blank=True)
     device_token = models.CharField(max_length=255, blank=True)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
@@ -69,11 +74,11 @@ class User(AbstractUser):
     username = models.CharField(max_length=200)  # This is your "name" field in forms
     user_type = models.CharField(max_length=255, default='client', choices=USER_TYPE_CHOICES)
     email = models.EmailField(verbose_name='Email', max_length=255, unique=True)
-     
-    origin = models.CharField(max_length=200,null=True, blank=True)     
-    uid = models.CharField(max_length=200,null=True, blank=True)     
-    
-       
+
+    origin = models.CharField(max_length=200,null=True, blank=True)
+    uid = models.CharField(max_length=200,null=True, blank=True)
+
+
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)

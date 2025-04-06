@@ -7,7 +7,20 @@ from rest_framework import serializers
 from .models import Tournament, Game,Deck,Participant,Fixture,MatchScore
 from users.models import User
 from rest_framework import serializers
+from django.conf import settings
 from .models import Tournament, Participant, MatchScore
+
+
+class PaymentStatusUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Participant
+        fields = ['payment_status']
+
+    def validate_payment_status(self, value):
+        valid_choices = [choice[0] for choice in Participant.PAYMENT_STATUS_CHOICES]
+        if value not in valid_choices:
+            raise serializers.ValidationError(f"Invalid payment status. Choose from {valid_choices}.")
+        return value
 class TournamentUpdateprizeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tournament
@@ -105,6 +118,86 @@ class CardSerializer(serializers.ModelSerializer):
 
 #         # Call the super class create method with updated validated_data
 #         return super().create(validated_data)
+class TournamentSerializerforfeature(serializers.ModelSerializer):
+    game_name = serializers.CharField(write_only=True, help_text="Name of the game to associate with the tournament")
+    created_by = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        write_only=True,
+        help_text="User ID creating the tournament"
+    )
+    staff_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Staff.objects.all(),
+        many=True,
+        write_only=True,
+        required=False,
+        help_text="IDs of staff members associated with the tournament"
+    )
+    event_type_display = serializers.CharField(source='get_event_type_display', read_only=True)
+    tournament_style_display = serializers.CharField(source='get_tournament_style_display', read_only=True)
+    tournament_structure_display = serializers.CharField(source='get_tournament_structure_display', read_only=True)
+    player_structure_display = serializers.CharField(source='get_player_structure_display', read_only=True)
+    banner_image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Tournament
+        fields = [
+            'id', 'tournament_name', 'email_address', 'contact_number', 'event_date', 'event_start_time',
+            'last_registration_date', 'tournament_fee', 'banner_image', 'venue', 'game_name', 'is_draft',
+            'created_by', 'created_at', 'featured', 'is_active', 'event_type', 'tournament_style',
+            'tournament_structure', 'player_structure', 'event_type_display', 'tournament_style_display',
+            'tournament_structure_display', 'player_structure_display', 'staff_ids',
+        ]
+        read_only_fields = ['created_at', 'is_active', 'event_type_display', 'tournament_style_display',
+                            'tournament_structure_display', 'player_structure_display']
+
+    def get_banner_image(self, obj):
+        if obj.banner_image:
+            return f"{settings.MEDIA_URL}{obj.banner_image}"
+        return None
+
+    def create(self, validated_data):
+        # Extract game_name and staff_ids from validated_data
+        print("Validating data:", validated_data)  # Print the entire validated data
+        game_name = validated_data.pop('game_name')
+        staff_ids = validated_data.pop('staff_ids', [])
+
+        print(f"Game Name: {game_name}")  # Print the game name being processed
+        print(f"Staff IDs: {staff_ids}")  # Print the staff IDs being processed
+
+        # Retrieve the Game instance by name
+        try:
+            game = Game.objects.get(name=game_name)
+            print(f"Game found: {game.name}")  # Print the game found in the database
+        except Game.DoesNotExist:
+            print(f"Game with name '{game_name}' does not exist.")  # Print error if game doesn't exist
+            raise serializers.ValidationError({
+                'game_name': f"A game with the name '{game_name}' does not exist. Please provide a valid game name."
+            })
+
+        # Add the fetched game instance to validated_data
+        validated_data['game'] = game
+
+        # Ensure `is_active` is explicitly set to True
+        validated_data['is_active'] = True
+        print(f"Validated data after adding game and is_active: {validated_data}")  # Print after adding game and is_active
+
+        # Validate the presence of `created_by`
+        if 'created_by' not in validated_data:
+            print("Created_by field is missing!")  # Print message if created_by is missing
+            raise serializers.ValidationError({'created_by': 'This field is required.'})
+
+        # Create the Tournament instance
+        print("Creating tournament instance...")  # Print before creating the tournament instance
+        tournament = super().create(validated_data)
+
+        # Assign staff to the tournament if staff_ids is provided
+        if staff_ids:
+            print(f"Assigning staff: {staff_ids}")  # Print the staff IDs being assigned to the tournament
+            tournament.staff.set(staff_ids)
+
+        print(f"Tournament created with ID: {tournament.id}")  # Print the ID of the created tournament
+        return tournament
+
 class TournamentSerializer(serializers.ModelSerializer):
     game_name = serializers.CharField(write_only=True, help_text="Name of the game to associate with the tournament")
     created_by = serializers.PrimaryKeyRelatedField(
@@ -567,8 +660,29 @@ class FixtureSerializer(serializers.ModelSerializer):
         fields = ['id', 'tournament', 'participant1', 'participant2', 'round_number', 'match_date', 'nominated_winner', 'verified_winner', 'is_verified','start_time','is_tournament_completed']
 from datetime import datetime, date
 from django.utils import timezone
+class SwissFixtureSerializerforfixture(serializers.ModelSerializer):
+    participant1 = ParticipantSerializerforfixture()
+    participant2 = ParticipantSerializerforfixture(allow_null=True)  # Allow null for participant2
+    # Handle datetime properly
 
-
+    class Meta:
+        model = SwissFixture
+        fields = [
+            'id',
+            'tournament',
+            'participant1',
+            'participant2',
+            'round_number',
+            'match_date',
+            'nominated_winner',
+            'verified_winner',
+            'is_verified',
+            'start_time',
+            'is_tournament_completed',
+            'participant1_score',
+            'participant2_score',
+            'draw','nominated_winner', 'verified_winner', 'is_verified','start_time','is_tournament_completed',
+        ]
 class SwissFixtureSerializer(serializers.ModelSerializer):
     participant1 = ParticipantSerializerforfixture()
     participant2 = ParticipantSerializerforfixture(allow_null=True)  # Allow null for participant2
@@ -589,8 +703,10 @@ class SwissFixtureSerializer(serializers.ModelSerializer):
             'is_tournament_completed',
             'participant1_score',
             'participant2_score',
-            'draw'
+            'draw','nominated_winner', 'verified_winner', 'is_verified','start_time','is_tournament_completed',
         ]
+
+
 
 
 
@@ -659,21 +775,21 @@ class newMatchScoreSerializer(serializers.ModelSerializer):
 
 
 
-class SwissFixtureSerializer(serializers.ModelSerializer):
-    # Adding readable nested fields for foreign keys
-    tournament_name = serializers.CharField(source='tournament.name', read_only=True)
-    participant1_name = serializers.CharField(source='participant1.name', read_only=True)
-    participant2_name = serializers.CharField(source='participant2.name', read_only=True)
-    nominated_winner_name = serializers.CharField(source='nominated_winner.name', read_only=True, required=False)
-    verified_winner_name = serializers.CharField(source='verified_winner.name', read_only=True, required=False)
+# class SwissFixtureSerializer(serializers.ModelSerializer):
+#     # Adding readable nested fields for foreign keys
+#     tournament_name = serializers.CharField(source='tournament.name', read_only=True)
+#     participant1_name = serializers.CharField(source='participant1.name', read_only=True)
+#     participant2_name = serializers.CharField(source='participant2.name', read_only=True)
+#     nominated_winner_name = serializers.CharField(source='nominated_winner.name', read_only=True, required=False)
+#     verified_winner_name = serializers.CharField(source='verified_winner.name', read_only=True, required=False)
 
-    class Meta:
-        model = SwissFixture
-        fields = [
-            'id', 'tournament', 'participant1', 'participant2', 'round_number', 'match_date',
-            'start_time', 'nominated_winner', 'verified_winner', 'is_verified', 'is_tournament_completed',
-            'tournament_name', 'participant1_name', 'participant2_name', 'nominated_winner_name', 'verified_winner_name','draw',
-        ]
+#     class Meta:
+#         model = SwissFixture
+#         fields = [
+#             'id', 'tournament', 'participant1', 'participant2', 'round_number', 'match_date',
+#             'start_time', 'nominated_winner', 'verified_winner', 'is_verified', 'is_tournament_completed',
+#             'tournament_name', 'participant1_name', 'participant2_name', 'nominated_winner_name', 'verified_winner_name','draw',
+#         ]
 
 
 # class TournamentSerializerhistory(serializers.ModelSerializer):
